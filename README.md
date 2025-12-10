@@ -30,6 +30,7 @@ GitHub Pages 构建时会设置 `GITHUB_PAGES=true` 以启用正确的 base 路�
 ## 部署
 - GitHub Actions 工作流：`.github/workflows/deploy.yml`。
 - 产物路径：`dist/`，通过 `actions/deploy-pages` 发布到 GitHub Pages。
+- 线上 Demo（GitHub Pages）：`https://ccwq.github.io/image-grid-spliter/`
 
 ## 使用提示
 - 上传后浏览器可能提示允许多文件下载，请选择“允许”。
