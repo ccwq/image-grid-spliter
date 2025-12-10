@@ -1,6 +1,7 @@
 # 图片网格裁切器 (Vite + Vue3 + TS)
 
-基于 Vite + Vue3 + TypeScript 的纯前端工具，支持上传/拖拽图片，按预设网格裁切并自动批量下载。已集成 PWA（可离线与安装），支持 GitHub Pages 部署，使用 pnpm 管理依赖。
+基于 Vite + Vue3 + TypeScript 的纯前端工具，支持上传/拖拽图片，按预设网格裁切并自动批量下载。已集成 PWA（可离线与安装），支持 GitHub Pages 部署，使用 pnpm 管理依赖。  
+English summary: Split images into grids for processing and export.
 
 ## 功能
 - 预设网格：2x2、3x3、4x4、2x3、2x4、3x2、4x2、5x2、2x5。
