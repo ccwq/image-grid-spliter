@@ -1,0 +1,32 @@
+{
+  "name": "image-grid-spliter",
+  "description": "图片网格裁切 PWA，支持预设网格、批量下载、移动端适配与 GitHub Pages 部署。",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "vue": "^3.5.24",
+    "workbox-window": "^7.4.0"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^27.0.0",
+    "@types/node": "^24.10.1",
+    "@vitejs/plugin-vue": "^6.0.2",
+    "@vitest/coverage-v8": "^4.0.15",
+    "@vue/test-utils": "^2.4.6",
+    "@vue/tsconfig": "^0.8.1",
+    "jsdom": "^27.3.0",
+    "typescript": "~5.9.3",
+    "vite": "^7.2.7",
+    "vite-plugin-pwa": "^1.2.0",
+    "vitest": "^4.0.15",
+    "vue-tsc": "^3.1.4"
+  }
+}
