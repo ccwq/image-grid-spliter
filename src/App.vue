@@ -26,6 +26,8 @@ const originalImage = shallowRef<HTMLImageElement | null>(null)
 const originalObjectUrl = ref<string | null>(null)
 const baseName = ref('tile')
 const imageSize = ref<{ width: number; height: number } | null>(null)
+const customRows = ref(gridPresets[0].rows)
+const customCols = ref(gridPresets[0].cols)
 
 const gridDescription = computed(() => `${selectedPreset.value.cols} 列 x ${selectedPreset.value.rows} 行`)
 const tileCount = computed(() => selectedPreset.value.cols * selectedPreset.value.rows)
@@ -189,7 +191,32 @@ const requestDownloadPermission = async () => {
 
 const triggerFileSelect = () => fileInput.value?.click()
 
-watch(selectedPreset, () => {
+const applyCustomGrid = () => {
+  const rows = Number(customRows.value)
+  const cols = Number(customCols.value)
+  if (!Number.isInteger(rows) || !Number.isInteger(cols) || rows <= 0 || cols <= 0) {
+    state.error = '自定义行列需为正整数'
+    return
+  }
+  state.error = ''
+  selectedPreset.value = { rows, cols, label: `${cols} x ${rows}（自定义）` }
+}
+
+const handleGlobalDragOver = (event: DragEvent) => {
+  event.preventDefault()
+  state.dragOver = true
+}
+
+const handleGlobalDrop = async (event: DragEvent) => {
+  event.preventDefault()
+  state.dragOver = false
+  const file = event.dataTransfer?.files?.[0]
+  if (file) await handleFile(file)
+}
+
+watch(selectedPreset, (preset) => {
+  customRows.value = preset.rows
+  customCols.value = preset.cols
   if (originalImage.value) {
     processAndDownload(true)
   }
@@ -197,10 +224,14 @@ watch(selectedPreset, () => {
 
 onBeforeUnmount(() => {
   cleanupAll()
+  window.removeEventListener('dragover', handleGlobalDragOver)
+  window.removeEventListener('drop', handleGlobalDrop)
 })
 
 onMounted(() => {
   requestDownloadPermission()
+  window.addEventListener('dragover', handleGlobalDragOver)
+  window.addEventListener('drop', handleGlobalDrop)
 })
 </script>
 
@@ -265,6 +296,19 @@ onMounted(() => {
           <span class="preset-sub">{{ preset.cols }} 列 · {{ preset.rows }} 行</span>
         </button>
       </div>
+      <div class="custom-grid">
+        <div class="custom-fields">
+          <label>
+            列
+            <input v-model.number="customCols" type="number" min="1" inputmode="numeric" />
+          </label>
+          <label>
+            行
+            <input v-model.number="customRows" type="number" min="1" inputmode="numeric" />
+          </label>
+        </div>
+        <button type="button" class="ghost" :disabled="state.processing" @click="applyCustomGrid">使用自定义网格</button>
+      </div>
     </section>
 
     <section class="panel upload-panel">
@@ -327,40 +371,41 @@ onMounted(() => {
 .page {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px;
 }
 
 .hero {
   display: grid;
-  gap: 16px;
-  grid-template-columns: 1.2fr 0.9fr;
+  gap: 12px;
+  grid-template-columns: 1.1fr 0.9fr;
   align-items: stretch;
 }
 
 .hero-text h1 {
-  margin: 8px 0;
-  font-size: 32px;
-  letter-spacing: 0.4px;
+  margin: 6px 0;
+  font-size: 26px;
+  letter-spacing: 0.2px;
 }
 
 .subhead {
   color: #cbd5e1;
-  margin: 4px 0 12px;
+  margin: 2px 0 8px;
+  font-size: 14px;
 }
 
 .hero-card {
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 18px;
-  padding: 16px 18px;
-  background: linear-gradient(135deg, rgba(79, 70, 229, 0.12), rgba(14, 165, 233, 0.12));
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  border-radius: 16px;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, rgba(79, 70, 229, 0.1), rgba(14, 165, 233, 0.1));
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.32);
 }
 
 .stat-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 0;
+  padding: 8px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
@@ -370,17 +415,18 @@ onMounted(() => {
 
 .label {
   color: #cbd5e1;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .value {
   font-weight: 700;
   color: #e2e8f0;
+  font-size: 14px;
 }
 
 .eyebrow {
   text-transform: uppercase;
-  font-size: 12px;
+  font-size: 11px;
   letter-spacing: 0.08em;
   color: #a5b4fc;
   margin: 0;
@@ -388,15 +434,15 @@ onMounted(() => {
 
 .hint {
   color: #cbd5e1;
-  font-size: 14px;
-  margin: 8px 0 0;
+  font-size: 13px;
+  margin: 6px 0 0;
 }
 
 .actions {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
-  margin: 12px 0 4px;
+  margin: 10px 0 2px;
 }
 
 .ghost {
@@ -408,27 +454,28 @@ onMounted(() => {
 
 .panel {
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 18px;
-  padding: 16px;
+  border-radius: 16px;
+  padding: 12px;
   background: rgba(255, 255, 255, 0.02);
   backdrop-filter: blur(6px);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.32);
 }
 
 .panel-header h2 {
-  margin: 6px 0;
-  font-size: 22px;
+  margin: 4px 0;
+  font-size: 18px;
 }
 
 .panel-header .muted {
-  margin-top: 4px;
+  margin-top: 2px;
+  font-size: 13px;
 }
 
 .preset-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 10px;
-  margin-top: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 6px;
+  margin-top: 8px;
 }
 
 .preset {
@@ -436,13 +483,14 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
-  padding: 12px;
+  gap: 1px;
+  padding: 9px 8px;
   background: rgba(255, 255, 255, 0.04);
   color: #e2e8f0;
   border: 1px solid rgba(255, 255, 255, 0.07);
   box-shadow: none;
   transition: border-color 0.12s ease, transform 0.12s ease;
+  min-height: 50px;
 }
 
 .preset:hover {
@@ -456,23 +504,55 @@ onMounted(() => {
 
 .preset-title {
   font-weight: 700;
+  font-size: 13px;
 }
 
 .preset-sub {
   color: #cbd5e1;
-  font-size: 13px;
+  font-size: 11px;
+}
+
+.custom-grid {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.custom-fields {
+  display: flex;
+  gap: 8px;
+}
+
+.custom-fields label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #cbd5e1;
+  font-size: 12px;
+}
+
+.custom-fields input {
+  width: 66px;
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  color: #e2e8f0;
 }
 
 .upload-panel {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .dropzone {
   border: 2px dashed rgba(255, 255, 255, 0.14);
-  border-radius: 18px;
-  padding: 28px 18px;
+  border-radius: 16px;
+  padding: 18px 14px;
   background: rgba(255, 255, 255, 0.03);
   text-align: center;
   transition: border-color 0.12s ease, background 0.12s ease;
@@ -485,13 +565,14 @@ onMounted(() => {
 }
 
 .drop-title {
-  font-size: 18px;
-  margin: 0 0 6px;
+  font-size: 16px;
+  margin: 0 0 4px;
 }
 
 .muted {
   color: #cbd5e1;
   margin: 4px 0;
+  font-size: 13px;
 }
 
 .file-input {
@@ -499,24 +580,25 @@ onMounted(() => {
 }
 
 .current-file {
-  margin-top: 10px;
+  margin-top: 8px;
   display: flex;
-  gap: 8px;
+  gap: 6px;
   justify-content: center;
   flex-wrap: wrap;
 }
 
 .chip {
   background: rgba(255, 255, 255, 0.08);
-  padding: 6px 10px;
+  padding: 5px 9px;
   border-radius: 999px;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .error {
   color: #fca5a5;
   font-weight: 600;
   margin: 0;
+  font-size: 13px;
 }
 
 .results {
@@ -525,28 +607,28 @@ onMounted(() => {
 
 .results-grid {
   display: grid;
-  grid-template-columns: minmax(320px, 1fr) 1.4fr;
-  gap: 10px;
+  grid-template-columns: minmax(260px, 1fr) 1.2fr;
+  gap: 8px;
 }
 
 .preview-card,
 .tiles-card {
-  padding: 16px;
+  padding: 12px;
 }
 
 .preview-box {
   border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 14px;
-  padding: 10px;
+  border-radius: 12px;
+  padding: 8px;
   background: rgba(0, 0, 0, 0.2);
-  min-height: 260px;
+  min-height: 200px;
   display: grid;
   place-items: center;
 }
 
 .preview-box img {
   max-width: 100%;
-  max-height: 320px;
+  max-height: 240px;
   border-radius: 10px;
   object-fit: contain;
 }
@@ -555,23 +637,23 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
 }
 
 .tiles-grid {
-  margin-top: 12px;
+  margin-top: 10px;
   display: grid;
-  gap: 10px;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
 }
 
 .tile {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
-  padding: 10px;
+  padding: 8px;
   background: rgba(255, 255, 255, 0.03);
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .tile img {
@@ -583,7 +665,7 @@ onMounted(() => {
 }
 
 .tile-name {
-  font-size: 13px;
+  font-size: 12px;
   color: #cbd5e1;
   word-break: break-all;
   margin: 0;
@@ -605,8 +687,75 @@ onMounted(() => {
 }
 
 @media (max-width: 640px) {
+  .page {
+    gap: 10px;
+  }
+
+  .hero {
+    gap: 8px;
+  }
+
+  .panel {
+    padding: 10px;
+    border-radius: 14px;
+  }
+
+  .panel-header h2 {
+    font-size: 16px;
+  }
+
+  .panel-header .muted {
+    font-size: 12px;
+  }
+
   .preset-grid {
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .preset {
+    min-height: 46px;
+    padding: 7px;
+  }
+
+  .dropzone {
+    padding: 14px 10px;
+  }
+
+  .drop-title {
+    font-size: 15px;
+  }
+
+  .hint,
+  .muted,
+  .label,
+  .value {
+    font-size: 12px;
+  }
+
+  .hero-text h1 {
+    font-size: 22px;
+  }
+
+  .subhead {
+    font-size: 12px;
+  }
+
+  .preview-box {
+    min-height: 160px;
+  }
+
+  .preview-box img {
+    max-height: 200px;
+  }
+
+  .tiles-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .tile {
+    padding: 6px;
   }
 
   .tiles-header {

@@ -13,7 +13,7 @@
 
 ## 3. 测试与验证
 - [x] 3.1 单元/组件测试（Vitest + @vue/test-utils）：网格计算、裁切结果、下载触发
-- [ ] 3.2 手动/E2E 验证：多文件下载、PWA 离线、移动端适配、GitHub Pages 构建路径
+- [ ] 3.2 手动/E2E 验证：多文件下载、PWA 离线、移动端适配（最新版样式已缩减，但需真机验证）、GitHub Pages 构建路径
 
 ## 4. CI/CD 与发布
 - [x] 4.1 配置 GitHub Actions：pnpm 安装、测试、构建

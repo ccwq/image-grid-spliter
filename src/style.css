@@ -1,6 +1,6 @@
 :root {
   font-family: "Segoe UI", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
-  line-height: 1.5;
+  line-height: 1.4;
   font-weight: 500;
   color: #e2e8f0;
   background-color: #0f172a;
@@ -22,6 +22,7 @@ body {
     radial-gradient(circle at 80% 0%, rgba(14, 165, 233, 0.18), transparent 25%),
     #0f172a;
   color: #e2e8f0;
+  font-size: 15px;
 }
 
 a {
@@ -32,25 +33,25 @@ a {
 #app {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 18px 20px;
 }
 
 button {
   border: 1px solid transparent;
   border-radius: 12px;
-  padding: 10px 14px;
-  font-size: 15px;
+  padding: 8px 12px;
+  font-size: 14px;
   font-weight: 600;
   color: #0b1221;
   background: linear-gradient(90deg, #a5b4fc, #38bdf8);
-  box-shadow: 0 10px 30px rgba(59, 130, 246, 0.25);
+  box-shadow: 0 10px 30px rgba(59, 130, 246, 0.2);
   cursor: pointer;
   transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
 }
 
 button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 14px 36px rgba(56, 189, 248, 0.28);
+  box-shadow: 0 14px 32px rgba(56, 189, 248, 0.24);
 }
 
 button:disabled {
@@ -66,7 +67,14 @@ select {
 }
 
 @media (max-width: 768px) {
+  body {
+    font-size: 13px;
+  }
   #app {
-    padding: 16px;
+    padding: 10px 12px;
+  }
+  button {
+    padding: 8px 10px;
+    font-size: 13px;
   }
 }
