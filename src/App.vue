@@ -18,7 +18,8 @@ const state = reactive({
   error: '',
 })
 
-const selectedPreset = ref<GridPreset>(gridPresets[0])
+const defaultPreset = gridPresets[0] ?? { cols: 2, rows: 2, label: '2 x 2' }
+const selectedPreset = ref<GridPreset>(defaultPreset)
 const fileInput = ref<HTMLInputElement | null>(null)
 const previewUrl = ref<string | null>(null)
 const tiles = ref<TileResult[]>([])
@@ -26,8 +27,8 @@ const originalImage = shallowRef<HTMLImageElement | null>(null)
 const originalObjectUrl = ref<string | null>(null)
 const baseName = ref('tile')
 const imageSize = ref<{ width: number; height: number } | null>(null)
-const customRows = ref(gridPresets[0].rows)
-const customCols = ref(gridPresets[0].cols)
+const customRows = ref(defaultPreset.rows)
+const customCols = ref(defaultPreset.cols)
 
 const gridDescription = computed(() => `${selectedPreset.value.cols} 列 x ${selectedPreset.value.rows} 行`)
 const tileCount = computed(() => selectedPreset.value.cols * selectedPreset.value.rows)
@@ -177,12 +178,11 @@ const onDragLeave = () => {
 }
 
 const requestDownloadPermission = async () => {
-  // 部分浏览器支持 downloads 权限声明，类型未内置，需忽略校验。
-  // @ts-expect-error 浏览器实验性权限名
-  if (navigator.permissions?.query) {
+  // 部分浏览器支持 downloads 权限声明；查询失败时忽略。
+  const permissions = (navigator as Partial<Navigator> & { permissions?: { query?: (init: unknown) => Promise<unknown> } }).permissions
+  if (permissions?.query) {
     try {
-      // @ts-expect-error 浏览器实验性权限名
-      await navigator.permissions.query({ name: 'downloads' })
+      await permissions.query({ name: 'downloads' } as unknown)
     } catch {
       // 安静失败，继续采用用户手势触发下载
     }
