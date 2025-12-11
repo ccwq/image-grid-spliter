@@ -1,38 +1,38 @@
-# 图片网格裁切器 (Vite + Vue3 + TS)
+# Image Grid Spliter
 
-基于 Vite + Vue3 + TypeScript 的纯前端工具，支持上传/拖拽图片，按预设网格裁切并自动批量下载。已集成 PWA（可离线与安装），支持 GitHub Pages 部署，使用 pnpm 管理依赖。  
-在线 Demo（GitHub Pages）：https://ccwq.github.io/image-grid-spliter/  
-English summary: Split images into grids for processing and export.
+[中文 README](README.zh-cn.md)
 
-## 功能
-- 预设网格：2x2、3x3、4x4、2x3、2x4、3x2、4x2、5x2、2x5。
-- 上传或拖拽图片后自动裁切，触发多文件批量下载。
-- 移动端适配，响应式布局。
-- PWA：可安装、离线可用，Service Worker 缓存。
-- GitHub Actions：构建、测试并发布到 GitHub Pages。
+Purely frontend image grid slicer built with Vite + Vue 3 + TypeScript. Upload or drag an image, pick a grid preset, and it slices plus batches the downloads. Ships with PWA offline support and GitHub Pages–friendly build. Dependency management: pnpm.
 
-## 本地开发
+## Features
+- Presets: 1x1 (compress-only), 2x2, 3x3, 4x4, 2x3, 2x4, 3x2, 4x2, 5x2, 2x5.
+- Browser-based slicing and batch download (requests multi-file permission).
+- Mobile-friendly responsive layout; PWA installable and offline-ready.
+- Localization: English/Chinese with browser-language default and in-app switcher.
+- Decorative pixel icons via `@iconify-json/pixelarticons` + `@iconify/vue`.
+
+## Quick Start
 ```bash
 pnpm install
 pnpm dev
 ```
 
-## 测试
+### Tests
 ```bash
 pnpm test
 ```
 
-## 构建
+### Build
 ```bash
 pnpm build
 ```
-GitHub Pages 构建时会设置 `GITHUB_PAGES=true` 以启用正确的 base 路径。
+GitHub Pages builds set `GITHUB_PAGES=true` to ensure the correct base path.
 
-## 部署
-- GitHub Actions 工作流：`.github/workflows/deploy.yml`。
-- 产物路径：`dist/`，通过 `actions/deploy-pages` 发布到 GitHub Pages。
-- 线上 Demo（GitHub Pages）：`https://ccwq.github.io/image-grid-spliter/`
+## Deploy
+- GitHub Actions workflow: `.github/workflows/deploy.yml`.
+- Output: `dist/`, published via `actions/deploy-pages` to GitHub Pages.
+- Live demo: https://ccwq.github.io/image-grid-spliter/
 
-## 使用提示
-- 上传后浏览器可能提示允许多文件下载，请选择“允许”。
-- 如需重新触发下载，可在结果区域点击“再次下载”。
+## Usage Notes
+- Allow your browser to download multiple files after slicing.
+- To retrigger downloads, click the download action in the results area.
