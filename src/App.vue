@@ -11,10 +11,12 @@ interface TileResult {
   col: number
 }
 
+const defaultStatusText = '等待上传图片并选择网格'
+
 const state = reactive({
   dragOver: false,
   processing: false,
-  status: '等待上传图片并选择网格',
+  status: defaultStatusText,
   error: '',
 })
 
@@ -53,6 +55,20 @@ const cleanupAll = () => {
     URL.revokeObjectURL(originalObjectUrl.value)
     originalObjectUrl.value = null
   }
+}
+
+const resetApp = () => {
+  cleanupAll()
+  originalImage.value = null
+  imageSize.value = null
+  baseName.value = 'tile'
+  state.dragOver = false
+  state.error = ''
+  state.processing = false
+  state.status = defaultStatusText
+  selectedPreset.value = defaultPreset
+  customRows.value = defaultPreset.rows
+  customCols.value = defaultPreset.cols
 }
 
 const loadImage = (objectUrl: string) =>
@@ -122,9 +138,12 @@ const processAndDownload = async (autoDownload = true) => {
   try {
     const nextTiles = await splitImage(originalImage.value)
     tiles.value = nextTiles
-    state.status = `裁切完成，共 ${nextTiles.length} 张（${gridDescription.value}）`
+    const finishedText = `裁切完成，共 ${nextTiles.length} 张（${gridDescription.value}）`
+    state.status = finishedText
     if (autoDownload) {
       await triggerDownloads()
+    } else {
+      state.status = `${finishedText}，等待手动下载`
     }
   } catch (err) {
     state.error = err instanceof Error ? err.message : '裁切失败'
@@ -220,7 +239,7 @@ watch(selectedPreset, (preset) => {
   customRows.value = preset.rows
   customCols.value = preset.cols
   if (originalImage.value) {
-    processAndDownload(true)
+    processAndDownload(false)
   }
 })
 
@@ -271,6 +290,9 @@ onMounted(() => {
           <button class="ghost" type="button" :disabled="!tiles.length || state.processing" @click="triggerDownloads">
             重新触发下载
           </button>
+          <button class="ghost danger" type="button" :disabled="!previewUrl && !tiles.length" @click.stop="resetApp">
+            清除当前图片
+          </button>
         </div>
         <p class="hint">支持：2x2、3x3、4x4、2x3、2x4、3x2、4x2、5x2、2x5。请允许浏览器多文件下载。</p>
       </div>
@@ -301,7 +323,7 @@ onMounted(() => {
         <div>
           <p class="eyebrow">网格预设</p>
           <h2>选择切割网格</h2>
-          <p class="muted">更改网格后会自动重新裁切并批量下载。</p>
+          <p class="muted">更改网格后会重新裁切，需手动触发下载。</p>
         </div>
       </div>
       <div class="preset-grid">
@@ -345,7 +367,7 @@ onMounted(() => {
         <input ref="fileInput" class="file-input" type="file" accept="image/*" @change="onFileChange" />
         <div class="drop-content">
           <p class="drop-title">拖拽图片到此处，或点击选择</p>
-          <p class="muted">将自动按当前网格裁切并下载全部切片</p>
+          <p class="muted">将按当前网格裁切，可手动下载全部切片</p>
           <div v-if="hasImage" class="current-file">
             <span class="chip">当前：{{ baseName }}</span>
             <span v-if="imageSize" class="chip">尺寸：{{ imageSize.width }} x {{ imageSize.height }}</span>
@@ -548,6 +570,15 @@ onMounted(() => {
   color: #e2e8f0;
   border-color: rgba(255, 255, 255, 0.16);
   box-shadow: none;
+}
+
+.ghost.danger {
+  color: #fca5a5;
+  border-color: rgba(248, 113, 113, 0.4);
+}
+
+.ghost.danger:hover {
+  border-color: rgba(248, 113, 113, 0.7);
 }
 
 .panel {
