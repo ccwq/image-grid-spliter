@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import imageCompression from 'browser-image-compression'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue'
 import type { GridPreset } from './utils/grid'
 import { computeTileRects, gridPresets } from './utils/grid'
@@ -11,6 +12,14 @@ interface TileResult {
   col: number
 }
 
+type ExportFormat = 'png' | 'jpg'
+const STORAGE_KEYS = {
+  format: 'igs:export-format',
+  quality: 'igs:jpg-quality',
+}
+const DEFAULT_EXPORT_FORMAT: ExportFormat = 'jpg'
+const DEFAULT_JPG_QUALITY = 80
+
 const defaultStatusText = '等待上传图片并选择网格'
 
 const state = reactive({
@@ -20,7 +29,10 @@ const state = reactive({
   error: '',
 })
 
-const defaultPreset = gridPresets[0] ?? { cols: 2, rows: 2, label: '2 x 2' }
+const defaultPreset =
+  gridPresets.find((preset) => preset.cols === 2 && preset.rows === 2) ??
+  gridPresets[0] ??
+  ({ cols: 2, rows: 2, label: '2 x 2' } as GridPreset)
 const selectedPreset = ref<GridPreset>(defaultPreset)
 const fileInput = ref<HTMLInputElement | null>(null)
 const previewUrl = ref<string | null>(null)
@@ -31,9 +43,14 @@ const baseName = ref('tile')
 const imageSize = ref<{ width: number; height: number } | null>(null)
 const customRows = ref(defaultPreset.rows)
 const customCols = ref(defaultPreset.cols)
+const exportFormat = ref<ExportFormat>(DEFAULT_EXPORT_FORMAT)
+const jpgQualityPercent = ref(DEFAULT_JPG_QUALITY)
 
 const gridDescription = computed(() => `${selectedPreset.value.cols} 列 x ${selectedPreset.value.rows} 行`)
 const tileCount = computed(() => selectedPreset.value.cols * selectedPreset.value.rows)
+const isJpgFormat = computed(() => exportFormat.value === 'jpg')
+const jpgQuality = computed(() => Math.min(100, Math.max(1, jpgQualityPercent.value)) / 100)
+const qualityLabel = computed(() => `${Math.round(Math.min(100, Math.max(1, jpgQualityPercent.value)))}%`)
 const hasImage = computed(() => Boolean(originalImage.value))
 const appVersion = __APP_VERSION__
 const githubUrl = 'https://github.com/ccwq/image-grid-spliter'
@@ -46,6 +63,7 @@ const visiblePresets = computed(() =>
 const showPresetToggle = computed(() => isMobile.value && gridPresets.length > 4)
 
 const stripExtension = (name: string) => name.replace(/\.[^.]+$/, '') || 'tile'
+const clampQuality = (value: number) => Math.min(100, Math.max(1, Math.round(value)))
 
 const resetTiles = () => {
   tiles.value.forEach((tile) => URL.revokeObjectURL(tile.previewUrl))
@@ -88,6 +106,31 @@ const resetApp = () => {
   customCols.value = defaultPreset.cols
 }
 
+const persistPreferences = () => {
+  try {
+    localStorage.setItem(STORAGE_KEYS.format, exportFormat.value)
+    localStorage.setItem(STORAGE_KEYS.quality, String(clampQuality(jpgQualityPercent.value)))
+  } catch {
+    // 忽略持久化异常（如无痕模式）
+  }
+}
+
+const restorePreferences = () => {
+  try {
+    const savedFormat = localStorage.getItem(STORAGE_KEYS.format)
+    if (savedFormat === 'png' || savedFormat === 'jpg') {
+      exportFormat.value = savedFormat
+    }
+    const savedQualityRaw = localStorage.getItem(STORAGE_KEYS.quality)
+    const savedQuality = savedQualityRaw ? Number(savedQualityRaw) : NaN
+    if (Number.isFinite(savedQuality)) {
+      jpgQualityPercent.value = clampQuality(savedQuality)
+    }
+  } catch {
+    // 忽略读取异常
+  }
+}
+
 const loadImage = (objectUrl: string) =>
   new Promise<HTMLImageElement>((resolve, reject) => {
     const img = new Image()
@@ -96,9 +139,23 @@ const loadImage = (objectUrl: string) =>
     img.src = objectUrl
   })
 
+const canvasToBlob = (canvas: HTMLCanvasElement, type: string, quality?: number) =>
+  new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (b) => {
+        if (b) resolve(b)
+        else reject(new Error('导出图片失败'))
+      },
+      type,
+      quality,
+    )
+  })
+
 const splitImage = async (img: HTMLImageElement) => {
   const rects = computeTileRects(img.naturalWidth, img.naturalHeight, selectedPreset.value.rows, selectedPreset.value.cols)
   const result: TileResult[] = []
+  const isSingleTile = rects.length === 1
+  const fileExt = exportFormat.value === 'png' ? 'png' : 'jpg'
 
   for (const rect of rects) {
     const canvas = document.createElement('canvas')
@@ -109,17 +166,28 @@ const splitImage = async (img: HTMLImageElement) => {
 
     ctx.drawImage(img, rect.x, rect.y, rect.width, rect.height, 0, 0, rect.width, rect.height)
 
-    const blob = await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob((b) => {
-        if (b) resolve(b)
-        else reject(new Error('导出图片失败'))
-      }, 'image/png')
-    })
+    const rawBlob = await canvasToBlob(canvas, 'image/png')
+    let finalBlob: Blob = rawBlob
 
-    const url = URL.createObjectURL(blob)
+    if (exportFormat.value === 'jpg') {
+      try {
+        finalBlob = await imageCompression(rawBlob, {
+          fileType: 'image/jpeg',
+          initialQuality: jpgQuality.value,
+          maxWidthOrHeight: Math.max(rect.width, rect.height),
+          useWebWorker: true,
+        })
+      } catch (err) {
+        console.error('JPG 压缩失败，使用回退输出', err)
+        finalBlob = await canvasToBlob(canvas, 'image/jpeg', jpgQuality.value)
+      }
+    }
+
+    const url = URL.createObjectURL(finalBlob)
+    const nameBase = isSingleTile ? baseName.value : `${baseName.value}-r${rect.row}c${rect.col}`
     result.push({
-      name: `${baseName.value}-r${rect.row}c${rect.col}.png`,
-      blob,
+      name: `${nameBase}.${fileExt}`,
+      blob: finalBlob,
       previewUrl: url,
       row: rect.row,
       col: rect.col,
@@ -150,7 +218,7 @@ const processAndDownload = async (autoDownload = true) => {
   if (!originalImage.value || state.processing) return
   state.error = ''
   state.processing = true
-  state.status = '正在裁切并生成切片...'
+  state.status = '正在裁切/压缩并生成输出...'
   resetTiles()
   try {
     const nextTiles = await splitImage(originalImage.value)
@@ -260,6 +328,27 @@ watch(selectedPreset, (preset) => {
   }
 })
 
+watch(exportFormat, () => {
+  persistPreferences()
+  if (originalImage.value) {
+    processAndDownload(false)
+  }
+})
+
+watch(jpgQualityPercent, (quality) => {
+  const clamped = clampQuality(quality)
+  if (clamped !== quality) {
+    jpgQualityPercent.value = clamped
+    return
+  }
+  if (isJpgFormat.value) {
+    persistPreferences()
+    if (originalImage.value) {
+      processAndDownload(false)
+    }
+  }
+})
+
 onBeforeUnmount(() => {
   cleanupAll()
   window.removeEventListener('dragover', handleGlobalDragOver)
@@ -268,6 +357,7 @@ onBeforeUnmount(() => {
 })
 
 onMounted(() => {
+  restorePreferences()
   requestDownloadPermission()
   window.addEventListener('dragover', handleGlobalDragOver)
   window.addEventListener('drop', handleGlobalDrop)
@@ -318,7 +408,9 @@ watch(isMobile, (mobile) => {
             清除当前图片
           </button>
         </div>
-        <p v-if="!isMobile" class="hint">支持：2x2、3x3、4x4、2x3、2x4、3x2、4x2、5x2、2x5。请允许浏览器多文件下载。</p>
+        <p v-if="!isMobile" class="hint">
+          支持：1x1（纯压缩）、2x2、3x3、4x4、2x3、2x4、3x2、4x2、5x2、2x5。请允许浏览器多文件下载。
+        </p>
       </div>
       <div v-if="!isMobile" class="hero-card">
         <div class="stat-row">
@@ -333,6 +425,12 @@ watch(isMobile, (mobile) => {
           <span class="label">图片尺寸</span>
           <span class="value">
             {{ imageSize ? `${imageSize.width} x ${imageSize.height}` : '未加载' }}
+          </span>
+        </div>
+        <div class="stat-row">
+          <span class="label">导出格式</span>
+          <span class="value">
+            {{ exportFormat.toUpperCase() }}<template v-if="isJpgFormat"> · 质量 {{ qualityLabel }}</template>
           </span>
         </div>
         <div class="stat-row">
@@ -384,6 +482,46 @@ watch(isMobile, (mobile) => {
       </div>
     </section>
 
+    <section class="panel export-panel">
+      <div class="panel-header">
+        <div>
+          <p class="eyebrow">导出设置</p>
+          <h2>选择输出格式</h2>
+          <p class="muted">切换格式或压缩强度会重新生成结果，需手动下载。</p>
+        </div>
+      </div>
+      <div class="export-controls">
+        <div class="export-field">
+          <span class="field-label">输出格式</span>
+          <div class="format-radios" role="radiogroup" aria-label="选择输出格式">
+            <label class="radio-pill">
+              <input v-model="exportFormat" type="radio" value="jpg" :disabled="state.processing" />
+              <span>JPG</span>
+            </label>
+            <label class="radio-pill">
+              <input v-model="exportFormat" type="radio" value="png" :disabled="state.processing" />
+              <span>PNG</span>
+            </label>
+          </div>
+        </div>
+        <label class="export-field" :style="{opacity: state.processing || !isJpgFormat ? 0.3 : 1}">
+          <span class="field-label">压缩强度</span>
+          <div class="quality-control">
+            <input
+              v-model.number="jpgQualityPercent"
+              type="range"
+              min="40"
+              max="100"
+              step="5"
+              :disabled="state.processing || !isJpgFormat"
+              aria-label="JPG 压缩强度"
+            />
+            <span class="quality-text" :class="{ disabled: !isJpgFormat }">{{ qualityLabel }}</span>
+          </div>
+        </label>
+      </div>
+    </section>
+
     <section class="panel upload-panel">
       <div
         class="dropzone"
@@ -421,7 +559,10 @@ watch(isMobile, (mobile) => {
             <div>
               <p class="eyebrow">裁切结果</p>
               <h3>{{ tiles.length ? `${tiles.length} 个切片` : '等待裁切' }}</h3>
-              <p class="muted">网格：{{ gridDescription }}，文件名前缀：{{ baseName }}</p>
+              <p class="muted">
+                网格：{{ gridDescription }}，文件名前缀：{{ baseName }}，格式：{{ exportFormat.toUpperCase() }}
+                <template v-if="isJpgFormat">（质量 {{ qualityLabel }}）</template>
+              </p>
             </div>
             <button class="ghost" type="button" :disabled="!tiles.length || state.processing" @click="triggerDownloads">
               再次下载
@@ -707,6 +848,94 @@ watch(isMobile, (mobile) => {
   color: #e2e8f0;
 }
 
+.export-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.export-controls {
+  display: grid;
+  grid-template-columns: 188px 1fr;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.export-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 100%;
+}
+
+.field-label {
+  color: #cbd5e1;
+  font-size: 12px;
+}
+
+.format-radios {
+  display: flex;
+  gap: 10px;
+}
+
+.radio-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.24);
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease, transform 0.12s ease;
+}
+
+.radio-pill input {
+  accent-color: #4ade80;
+}
+
+.radio-pill:hover {
+  border-color: rgba(74, 222, 128, 0.8);
+  background: rgba(74, 222, 128, 0.12);
+  transform: translateY(-1px);
+}
+
+.radio-pill input:disabled + span,
+.radio-pill input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.quality-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.24);
+  height: 100%;
+}
+
+.quality-control input[type='range'] {
+  flex: 1;
+}
+
+.quality-text {
+  min-width: 42px;
+  text-align: right;
+  color: #e2e8f0;
+  font-weight: 700;
+}
+
+.quality-text.disabled {
+  opacity: 0.6;
+}
+
 .upload-panel {
   display: flex;
   flex-direction: column;
@@ -942,6 +1171,10 @@ watch(isMobile, (mobile) => {
   .tiles-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .export-controls {
+    grid-template-columns: 170px 1fr;
   }
 }
 </style>

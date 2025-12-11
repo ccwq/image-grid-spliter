@@ -46,6 +46,7 @@ export function computeTileRects(width: number, height: number, rows: number, co
 }
 
 export const gridPresets: GridPreset[] = [
+  { cols: 1, rows: 1, label: '1 x 1' },
   { cols: 2, rows: 2, label: '2 x 2' },
   { cols: 3, rows: 3, label: '3 x 3' },
   { cols: 4, rows: 4, label: '4 x 4' },
