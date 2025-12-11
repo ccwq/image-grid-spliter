@@ -76,6 +76,21 @@ select {
   font-family: inherit;
 }
 
+select {
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: #e2e8f0;
+  outline: none;
+}
+
+/* 让下拉项在深色主题下也保持统一色调 */
+select option {
+  background-color: #0f172a;
+  color: #e2e8f0;
+}
+
 @media (max-width: 768px) {
   body {
     font-size: 13px;

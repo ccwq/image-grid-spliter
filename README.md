@@ -11,6 +11,10 @@ Purely frontend image grid slicer built with Vite + Vue 3 + TypeScript. Upload o
 - Localization: English/Chinese with browser-language default and in-app switcher.
 - Decorative pixel icons via `@iconify-json/pixelarticons` + `@iconify/vue`.
 
+## Screenshots
+- Desktop (English): ![Desktop English](docs/assets/app-desktop-en.png)
+- Mobile (English): ![Mobile English](docs/assets/app-mobile-en.png)
+
 ## Quick Start
 ```bash
 pnpm install

@@ -11,6 +11,10 @@
 - 多语言：中英双语，默认跟随浏览器语言，可在页面内切换。
 - 像素风装饰图标：集成 `@iconify-json/pixelarticons` 与 `@iconify/vue`。
 
+## 截图
+- 桌面端（中文）：![Desktop Chinese](docs/assets/app-desktop-zh.png)
+- 移动端（中文）：![Mobile Chinese](docs/assets/app-mobile-zh.png)
+
 ## 快速开始
 ```bash
 pnpm install
