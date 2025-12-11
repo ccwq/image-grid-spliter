@@ -37,6 +37,13 @@ const tileCount = computed(() => selectedPreset.value.cols * selectedPreset.valu
 const hasImage = computed(() => Boolean(originalImage.value))
 const appVersion = __APP_VERSION__
 const githubUrl = 'https://github.com/ccwq/image-grid-spliter'
+const isMobile = ref(false)
+const presetExpanded = ref(true)
+
+const visiblePresets = computed(() =>
+  isMobile.value && !presetExpanded.value ? gridPresets.slice(0, 4) : gridPresets,
+)
+const showPresetToggle = computed(() => isMobile.value && gridPresets.length > 4)
 
 const stripExtension = (name: string) => name.replace(/\.[^.]+$/, '') || 'tile'
 
@@ -55,6 +62,16 @@ const cleanupAll = () => {
     URL.revokeObjectURL(originalObjectUrl.value)
     originalObjectUrl.value = null
   }
+}
+
+const syncMobileFlag = () => {
+  const mobile = window.innerWidth <= 640
+  isMobile.value = mobile
+  document.body.dataset.mobile = mobile ? 'true' : 'false'
+}
+
+const togglePresetExpanded = () => {
+  presetExpanded.value = !presetExpanded.value
 }
 
 const resetApp = () => {
@@ -247,12 +264,19 @@ onBeforeUnmount(() => {
   cleanupAll()
   window.removeEventListener('dragover', handleGlobalDragOver)
   window.removeEventListener('drop', handleGlobalDrop)
+  window.removeEventListener('resize', syncMobileFlag)
 })
 
 onMounted(() => {
   requestDownloadPermission()
   window.addEventListener('dragover', handleGlobalDragOver)
   window.addEventListener('drop', handleGlobalDrop)
+  window.addEventListener('resize', syncMobileFlag)
+  syncMobileFlag()
+})
+
+watch(isMobile, (mobile) => {
+  presetExpanded.value = !mobile
 })
 </script>
 
@@ -294,9 +318,9 @@ onMounted(() => {
             清除当前图片
           </button>
         </div>
-        <p class="hint">支持：2x2、3x3、4x4、2x3、2x4、3x2、4x2、5x2、2x5。请允许浏览器多文件下载。</p>
+        <p v-if="!isMobile" class="hint">支持：2x2、3x3、4x4、2x3、2x4、3x2、4x2、5x2、2x5。请允许浏览器多文件下载。</p>
       </div>
-      <div class="hero-card">
+      <div v-if="!isMobile" class="hero-card">
         <div class="stat-row">
           <span class="label">当前网格</span>
           <span class="value">{{ gridDescription }}</span>
@@ -328,7 +352,7 @@ onMounted(() => {
       </div>
       <div class="preset-grid">
         <button
-          v-for="preset in gridPresets"
+          v-for="preset in visiblePresets"
           :key="preset.label"
           type="button"
           class="preset"
@@ -340,7 +364,12 @@ onMounted(() => {
           <span class="preset-sub">{{ preset.cols }} 列 · {{ preset.rows }} 行</span>
         </button>
       </div>
-      <div class="custom-grid">
+      <div v-if="showPresetToggle" class="preset-toggle">
+        <button class="ghost" type="button" @click="togglePresetExpanded">
+          {{ presetExpanded ? '收起预设' : '展开更多预设' }}
+        </button>
+      </div>
+      <div v-if="!isMobile || presetExpanded" class="custom-grid">
         <div class="custom-fields">
           <label>
             列
@@ -374,7 +403,7 @@ onMounted(() => {
           </div>
         </div>
       </div>
-      <p class="muted">提示：若浏览器阻止多文件下载，请在地址栏允许该站点的批量下载。</p>
+      <p v-if="!isMobile" class="muted">提示：若浏览器阻止多文件下载，请在地址栏允许该站点的批量下载。</p>
       <p v-if="state.error" class="error">{{ state.error }}</p>
     </section>
 
@@ -605,6 +634,12 @@ onMounted(() => {
   grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
   gap: 6px;
   margin-top: 8px;
+}
+
+.preset-toggle {
+  margin-top: 6px;
+  display: flex;
+  justify-content: center;
 }
 
 .preset {
@@ -852,6 +887,11 @@ onMounted(() => {
   .preset-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 4px;
+  }
+
+  .preset-toggle button {
+    width: 100%;
+    justify-content: center;
   }
 
   .preset {
