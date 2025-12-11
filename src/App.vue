@@ -144,6 +144,10 @@ const handleJpgQualityChange = (quality: number) => {
   jpgQualityPercent.value = quality
 }
 
+const handleSelectPreset = (preset: GridPreset) => {
+  selectedPreset.value = preset
+}
+
 watch(selectedPreset, (preset) => {
   customRows.value = preset.rows
   customCols.value = preset.cols
@@ -233,7 +237,7 @@ onBeforeUnmount(() => {
       v-model:custom-cols="customCols"
       :processing="state.processing"
       :is-mobile="isMobile"
-      @select-preset="(preset) => (selectedPreset.value = preset)"
+      @select-preset="handleSelectPreset"
       @toggle-presets="togglePresetExpanded"
       @apply-custom-grid="applyCustomGridWithValidation"
     />
