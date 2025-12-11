@@ -17,7 +17,7 @@ export function useGridSettings({ isMobile, messages }: GridSettingsOptions) {
   const selectedPreset = ref<GridPreset>(defaultPreset)
   const customRows = ref(defaultPreset.rows)
   const customCols = ref(defaultPreset.cols)
-  const presetExpanded = ref(true)
+  const presetExpanded = ref(false)
 
   const gridDescription = computed(() =>
     messages.value.format.gridDescription(selectedPreset.value.cols, selectedPreset.value.rows),
