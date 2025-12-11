@@ -33,6 +33,8 @@ const customCols = ref(defaultPreset.cols)
 const gridDescription = computed(() => `${selectedPreset.value.cols} 列 x ${selectedPreset.value.rows} 行`)
 const tileCount = computed(() => selectedPreset.value.cols * selectedPreset.value.rows)
 const hasImage = computed(() => Boolean(originalImage.value))
+const appVersion = __APP_VERSION__
+const githubUrl = 'https://github.com/ccwq/image-grid-spliter'
 
 const stripExtension = (name: string) => name.replace(/\.[^.]+$/, '') || 'tile'
 
@@ -237,6 +239,26 @@ onMounted(() => {
 
 <template>
   <main class="page">
+    <header class="app-header">
+      <div class="brand">
+        <div class="logo-mark">
+          <img src="/igs.svg" alt="Image Grid Spliter logo" />
+        </div>
+        <div class="brand-text">
+          <span class="brand-title">Image Grid Spliter</span>
+          <span class="brand-version">v{{ appVersion }}</span>
+        </div>
+      </div>
+      <a class="icon-button" :href="githubUrl" target="_blank" rel="noopener" aria-label="前往 GitHub 仓库">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <path
+            fill="currentColor"
+            d="M8 0C3.58 0 0 3.64 0 8.13c0 3.6 2.29 6.65 5.47 7.73.4.08.55-.18.55-.4 0-.2-.01-.86-.01-1.55-2.01.37-2.53-.5-2.69-.96-.09-.23-.48-.96-.82-1.15-.28-.15-.68-.52-.01-.53.63-.01 1.08.6 1.23.85.72 1.23 1.87.88 2.33.66.07-.53.28-.88.51-1.09-1.78-.2-3.64-.92-3.64-4.09 0-.9.31-1.64.82-2.22-.08-.2-.36-1.02.08-2.11 0 0 .67-.22 2.2.85.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.08 2.2-.85 2.2-.85.44 1.09.16 1.91.08 2.11.51.58.82 1.32.82 2.22 0 3.18-1.87 3.89-3.65 4.09.29.26.54.76.54 1.54 0 1.11-.01 2-.01 2.27 0 .22.15.48.55.4A8.01 8.01 0 0 0 16 8.13C16 3.64 12.42 0 8 0"
+          />
+        </svg>
+      </a>
+    </header>
+
     <header class="hero">
       <div class="hero-text">
         <p class="eyebrow">PWA · 离线可用 · 移动端适配</p>
@@ -368,6 +390,82 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.32);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: radial-gradient(circle at 20% 20%, rgba(79, 70, 229, 0.4), rgba(56, 189, 248, 0.4));
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.logo-mark img {
+  width: 26px;
+  height: 26px;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.brand-title {
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.brand-version {
+  font-size: 12px;
+  color: #cbd5e1;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  width: fit-content;
+}
+
+.icon-button {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  display: grid;
+  place-items: center;
+  color: #e2e8f0;
+  transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+
+.icon-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(56, 189, 248, 0.7);
+  background: rgba(56, 189, 248, 0.12);
+}
+
+.icon-button svg {
+  width: 18px;
+  height: 18px;
+}
+
 .page {
   display: flex;
   flex-direction: column;
@@ -689,6 +787,18 @@ onMounted(() => {
 @media (max-width: 640px) {
   .page {
     gap: 10px;
+  }
+
+  .app-header {
+    padding: 9px 10px;
+  }
+
+  .brand-title {
+    font-size: 14px;
+  }
+
+  .brand-version {
+    font-size: 11px;
   }
 
   .hero {

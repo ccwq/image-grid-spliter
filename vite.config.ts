@@ -3,10 +3,14 @@ import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
 
 const isGithubPages = process.env.GITHUB_PAGES === 'true'
+const appVersion = process.env.npm_package_version ?? '0.0.0'
 
 // https://vite.dev/config/
 export default defineConfig({
   base: isGithubPages ? '/image-grid-spliter/' : '/',
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion),
+  },
   plugins: [
     vue(),
     VitePWA({
