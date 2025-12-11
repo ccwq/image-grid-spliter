@@ -38,6 +38,7 @@ const emit = defineEmits<{ (e: 'trigger-downloads'): void }>()
             <p class="muted">{{ props.resultsSummary }}</p>
           </div>
           <button class="ghost" type="button" :disabled="!props.tiles.length || props.processing" @click="emit('trigger-downloads')">
+            <Icon :icon="props.icons.download" class="btn-icon" aria-hidden="true" />
             {{ props.tr.buttons.downloadAgain }}
           </button>
         </div>

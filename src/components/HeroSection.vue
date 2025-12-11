@@ -40,12 +40,15 @@ const emit = defineEmits<{
       <p class="subhead">{{ props.tr.meta.description }}</p>
       <div class="actions">
         <button type="button" :disabled="props.processing" @click="emit('choose-file')">
+          <Icon :icon="props.icons.imagePlus" class="btn-icon" aria-hidden="true" />
           {{ props.processing ? props.tr.buttons.processing : props.tr.buttons.chooseImage }}
         </button>
         <button class="ghost" type="button" :disabled="!props.hasTiles || props.processing" @click="emit('trigger-downloads')">
+          <Icon :icon="props.icons.redo" class="btn-icon" aria-hidden="true" />
           {{ props.tr.buttons.reDownload }}
         </button>
         <button class="ghost danger" type="button" :disabled="!props.hasImage && !props.hasTiles" @click.stop="emit('reset')">
+          <Icon :icon="props.icons.trash" class="btn-icon" aria-hidden="true" />
           {{ props.tr.buttons.clear }}
         </button>
       </div>

@@ -37,6 +37,9 @@ a {
 }
 
 button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   border: 1px solid transparent;
   border-radius: 12px;
   padding: 8px 12px;
@@ -59,6 +62,13 @@ button:disabled {
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
+}
+
+.btn-icon {
+  width: 16px;
+  height: 16px;
+  color: currentColor;
+  flex-shrink: 0;
 }
 
 input,

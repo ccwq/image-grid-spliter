@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { Icon } from '@iconify/vue'
 import type { LocaleMessages } from '../composables/useLocale'
 
 interface Props {
   tr: LocaleMessages
+  icons: Record<string, unknown>
   exportFormat: string
   isJpgFormat: boolean
   qualityLabel: string
@@ -31,6 +33,7 @@ const emit = defineEmits<{
         <span class="field-label">{{ props.tr.export.formatLabel }}</span>
         <div class="format-radios" role="radiogroup" :aria-label="props.tr.export.formatLabel">
           <label class="radio-pill">
+            <Icon :icon="props.icons.file" class="btn-icon" aria-hidden="true" />
             <input
               type="radio"
               value="jpg"
@@ -41,6 +44,7 @@ const emit = defineEmits<{
             <span>JPG</span>
           </label>
           <label class="radio-pill">
+            <Icon :icon="props.icons.image" class="btn-icon" aria-hidden="true" />
             <input
               type="radio"
               value="png"

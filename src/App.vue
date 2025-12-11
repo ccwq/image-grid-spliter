@@ -12,6 +12,7 @@ import { useGridSettings } from './composables/useGridSettings'
 import { useExportSettings } from './composables/useExportSettings'
 import { useImageSlicer } from './composables/useImageSlicer'
 import { gridPresets } from './utils/grid'
+import type { ExportFormat } from './composables/useLocale'
 
 const icons = {
   grid: pixelarticons.icons.grid,
@@ -20,6 +21,13 @@ const icons = {
   image: pixelarticons.icons.image,
   flag: pixelarticons.icons.flag,
   info: pixelarticons.icons['info-box'],
+  redo: pixelarticons.icons.redo,
+  trash: pixelarticons.icons.trash,
+  check: pixelarticons.icons.check,
+  chevronDown: pixelarticons.icons['chevron-down'],
+  chevronUp: pixelarticons.icons['chevron-up'],
+  imagePlus: pixelarticons.icons['image-plus'],
+  file: pixelarticons.icons.file,
 }
 
 const appVersion = __APP_VERSION__
@@ -128,6 +136,14 @@ const syncMobileFlag = () => {
   document.body.dataset.mobile = mobile ? 'true' : 'false'
 }
 
+const handleExportFormatChange = (format: ExportFormat) => {
+  exportFormat.value = format
+}
+
+const handleJpgQualityChange = (quality: number) => {
+  jpgQualityPercent.value = quality
+}
+
 watch(selectedPreset, (preset) => {
   customRows.value = preset.rows
   customCols.value = preset.cols
@@ -224,13 +240,14 @@ onBeforeUnmount(() => {
 
     <ExportSettings
       :tr="tr"
+      :icons="icons"
       :export-format="exportFormat"
       :is-jpg-format="isJpgFormat"
       :quality-label="qualityLabel"
       :jpg-quality-percent="jpgQualityPercent"
       :processing="state.processing"
-      @update:export-format="(val) => (exportFormat.value = val as 'png' | 'jpg')"
-      @update:jpg-quality-percent="(val) => (jpgQualityPercent.value = val)"
+      @update:export-format="handleExportFormatChange"
+      @update:jpg-quality-percent="handleJpgQualityChange"
     />
 
     <UploadPanel
@@ -314,8 +331,8 @@ onBeforeUnmount(() => {
 }
 
 .logo-mark {
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   border-radius: 10px;
   background: radial-gradient(circle at 20% 20%, rgba(79, 70, 229, 0.4), rgba(56, 189, 248, 0.4));
   display: grid;
@@ -557,6 +574,18 @@ onBeforeUnmount(() => {
   font-size: 13px;
 }
 
+.preset-heading {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 6px;
+}
+
+.preset-heading .btn-icon{
+  position: relative;
+  top: -2px;
+}
+
 .preset-sub {
   color: #cbd5e1;
   font-size: 11px;
@@ -603,7 +632,7 @@ onBeforeUnmount(() => {
 
 .export-controls {
   display: grid;
-  grid-template-columns: 188px 1fr;
+  grid-template-columns: 240px 1fr;
   gap: 12px;
   align-items: stretch;
 }
@@ -917,6 +946,9 @@ onBeforeUnmount(() => {
 
   .export-controls {
     grid-template-columns: 170px 1fr;
+
+    display: flex;
+    flex-direction: column;
   }
 }
 </style>

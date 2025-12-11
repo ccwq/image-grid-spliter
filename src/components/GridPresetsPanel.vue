@@ -49,12 +49,16 @@ const emit = defineEmits<{
         :disabled="props.processing"
         @click="emit('select-preset', preset)"
       >
-        <span class="preset-title">{{ preset.label }}</span>
+        <span class="preset-heading">
+          <Icon :icon="props.icons.grid" class="btn-icon" aria-hidden="true" />
+          <span class="preset-title">{{ preset.label }}</span>
+        </span>
         <!-- <span class="preset-sub">{{ props.tr.format.presetSub(preset.cols, preset.rows) }}</span> -->
       </button>
     </div>
     <div v-if="props.showPresetToggle" class="preset-toggle">
       <button class="ghost" type="button" @click="emit('toggle-presets')">
+        <Icon :icon="props.presetExpanded ? props.icons.chevronUp : props.icons.chevronDown" class="btn-icon" aria-hidden="true" />
         {{ props.presetExpanded ? props.tr.buttons.collapsePresets : props.tr.buttons.expandPresets }}
       </button>
     </div>
@@ -82,6 +86,7 @@ const emit = defineEmits<{
         </label>
       </div>
       <button type="button" class="ghost" :disabled="props.processing" @click="emit('apply-custom-grid')">
+        <Icon :icon="props.icons.check" class="btn-icon" aria-hidden="true" />
         {{ props.tr.grid.apply }}
       </button>
     </div>
