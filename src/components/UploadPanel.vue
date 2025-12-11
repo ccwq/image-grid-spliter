@@ -7,8 +7,9 @@ interface Props {
   icons: Record<string, unknown>
   dragOver: boolean
   hasImage: boolean
-  baseName: string
-  imageSize: { width: number; height: number } | null
+  firstBaseName: string
+  firstImageSize: { width: number; height: number } | null
+  queueSummary: string
   errorText: string
   isMobile: boolean
 }
@@ -39,9 +40,10 @@ const emit = defineEmits<{
         <p class="drop-title">{{ props.tr.upload.title }}</p>
         <p class="muted">{{ props.tr.upload.subtitle }}</p>
         <div v-if="props.hasImage" class="current-file">
-          <span class="chip">{{ props.tr.upload.currentPrefix }}{{ props.baseName }}</span>
-          <span v-if="props.imageSize" class="chip">
-            {{ props.tr.upload.sizePrefix }}{{ props.imageSize.width }} x {{ props.imageSize.height }}
+          <span class="chip">{{ props.queueSummary }}</span>
+          <span class="chip">{{ props.tr.upload.currentPrefix }}{{ props.firstBaseName }}</span>
+          <span v-if="props.firstImageSize" class="chip">
+            {{ props.tr.upload.sizePrefix }}{{ props.firstImageSize.width }} x {{ props.firstImageSize.height }}
           </span>
         </div>
       </div>

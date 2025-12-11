@@ -12,6 +12,7 @@ import { useGridSettings } from './composables/useGridSettings'
 import { useExportSettings } from './composables/useExportSettings'
 import { useImageSlicer } from './composables/useImageSlicer'
 import { gridPresets } from './utils/grid'
+import type { GridPreset } from './utils/grid'
 import type { ExportFormat } from './composables/useLocale'
 
 const icons = {
@@ -62,18 +63,16 @@ const {
 
 const {
   fileInput,
-  previewUrl,
-  tiles,
-  originalImage,
-  baseName,
-  imageSize,
+  images,
+  totalTiles,
+  autoDownload,
+  firstImageSize,
   state,
   statusText,
   clearError,
   resetApp,
   triggerDownloads,
-  processAndDownload,
-  handleFile,
+  processAll,
   onFileChange,
   onDrop,
   onDragOver,
@@ -82,24 +81,30 @@ const {
   handleGlobalDrop,
   requestDownloadPermission,
   triggerFileSelect,
+  setAutoDownload,
+  downloadSingleImage,
 } = useImageSlicer({ selectedPreset, exportFormat, jpgQuality, gridDescription, currentMessages })
 
-const hasImage = computed(() => Boolean(originalImage.value))
+const hasImage = computed(() => images.value.length > 0)
 const imageSizeLabel = computed(() =>
-  imageSize.value
-    ? currentMessages.value.format.imageSize(imageSize.value.width, imageSize.value.height)
+  firstImageSize.value
+    ? images.value.length > 1
+      ? currentMessages.value.format.imageCountWithSize(images.value.length, firstImageSize.value.width, firstImageSize.value.height)
+      : currentMessages.value.format.imageSize(firstImageSize.value.width, firstImageSize.value.height)
     : currentMessages.value.stats.notLoaded,
 )
-const tilesHeading = computed(() => currentMessages.value.format.tilesHeading(tiles.value.length))
+const tilesHeading = computed(() => currentMessages.value.format.tilesHeading(totalTiles.value))
 const resultsSummary = computed(() =>
-  currentMessages.value.format.resultsSummary(
+  currentMessages.value.format.resultsSummaryMulti(
     gridDescription.value,
-    baseName.value,
     exportFormat.value.toUpperCase(),
-    qualityLabel.value,
+    images.value.length,
     isJpgFormat.value,
+    qualityLabel.value,
   ),
 )
+const firstBaseName = computed(() => images.value[0]?.baseName ?? 'tile')
+const queueSummary = computed(() => (images.value.length ? currentMessages.value.upload.queuePrefix(images.value.length) : ''))
 
 const errorText = computed(() => {
   if (state.errorKey === 'none') return ''
@@ -117,8 +122,8 @@ const applyCustomGridWithValidation = () => {
     state.errorKey = 'customGridInvalid'
   } else {
     clearError()
-    if (originalImage.value) {
-      processAndDownload(false)
+    if (images.value.length) {
+      processAll(false)
     }
   }
 }
@@ -148,18 +153,25 @@ const handleSelectPreset = (preset: GridPreset) => {
   selectedPreset.value = preset
 }
 
+const handleAutoDownloadToggle = (value: boolean) => {
+  setAutoDownload(value)
+  if (value && images.value.length) {
+    processAll(true)
+  }
+}
+
 watch(selectedPreset, (preset) => {
   customRows.value = preset.rows
   customCols.value = preset.cols
-  if (originalImage.value) {
-    processAndDownload(false)
+  if (images.value.length) {
+    processAll(false)
   }
 })
 
 watch(exportFormat, () => {
   persistPreferences()
-  if (originalImage.value) {
-    processAndDownload(false)
+  if (images.value.length) {
+    processAll(false)
   }
 })
 
@@ -169,9 +181,9 @@ watch(jpgQualityPercent, (quality) => {
     jpgQualityPercent.value = clamped
     return
   }
-  if (isJpgFormat.value && originalImage.value) {
+  if (isJpgFormat.value && images.value.length) {
     persistPreferences()
-    processAndDownload(false)
+    processAll(false)
   }
 })
 
@@ -217,7 +229,7 @@ onBeforeUnmount(() => {
       :is-jpg-format="isJpgFormat"
       :status-text="statusText"
       :processing="state.processing"
-      :has-tiles="tiles.length > 0"
+      :has-tiles="totalTiles > 0"
       :has-image="hasImage"
       :is-mobile="isMobile"
       @choose-file="triggerFileSelect"
@@ -259,8 +271,9 @@ onBeforeUnmount(() => {
       :icons="icons"
       :drag-over="state.dragOver"
       :has-image="hasImage"
-      :base-name="baseName"
-      :image-size="imageSize"
+      :first-base-name="firstBaseName"
+      :first-image-size="firstImageSize"
+      :queue-summary="queueSummary"
       :error-text="errorText"
       :is-mobile="isMobile"
       @drop="onDrop"
@@ -270,19 +283,21 @@ onBeforeUnmount(() => {
       @pick="triggerFileSelect"
     >
       <template #file-input>
-        <input ref="fileInput" class="file-input" type="file" accept="image/*" @change="onFileChange" />
+        <input ref="fileInput" class="file-input" type="file" accept="image/*" multiple @change="onFileChange" />
       </template>
     </UploadPanel>
 
     <ResultsPanel
       :tr="tr"
       :icons="icons"
-      :tiles="tiles"
-      :preview-url="previewUrl"
+      :images="images"
       :tiles-heading="tilesHeading"
       :results-summary="resultsSummary"
+      :auto-download="autoDownload"
       :processing="state.processing"
+      @toggle-auto-download="handleAutoDownloadToggle"
       @trigger-downloads="triggerDownloads"
+      @download-image="downloadSingleImage"
     />
   </main>
 </template>
@@ -774,6 +789,37 @@ onBeforeUnmount(() => {
   padding: 0;
 }
 
+.results-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.results-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.auto-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.auto-toggle input {
+  accent-color: #4ade80;
+}
+
+.small {
+  font-size: 12px;
+}
+
 .results-grid {
   display: grid;
   grid-template-columns: minmax(260px, 1fr) 1.2fr;
@@ -816,6 +862,37 @@ onBeforeUnmount(() => {
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
 }
 
+.image-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+}
+
+.image-block {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.95fr) 1.05fr;
+  gap: 10px;
+  align-items: start;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.image-block .preview-card,
+.image-block .tiles-card {
+  padding: 0;
+}
+
+.image-block .preview-box img {
+  max-height: 200px;
+}
+
+.meta {
+  margin: 6px 0 0;
+}
+
 .tile {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
@@ -847,6 +924,14 @@ onBeforeUnmount(() => {
 
   .results-grid {
     grid-template-columns: 1fr;
+  }
+
+  .image-block {
+    grid-template-columns: 1fr;
+  }
+
+  .results-actions {
+    align-items: flex-start;
   }
 
   .actions {
@@ -953,6 +1038,10 @@ onBeforeUnmount(() => {
 
     display: flex;
     flex-direction: column;
+  }
+
+  .image-block {
+    grid-template-columns: 1fr;
   }
 }
 </style>

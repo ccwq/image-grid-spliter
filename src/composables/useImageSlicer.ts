@@ -1,8 +1,7 @@
 import imageCompression from 'browser-image-compression'
-import { computed, reactive, ref, shallowRef } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { computeTileRects, type GridPreset } from '../utils/grid'
-import type { LocaleMessages } from './useLocale'
-import type { ExportFormat } from './useLocale'
+import type { LocaleMessages, ExportFormat } from './useLocale'
 
 export interface TileResult {
   name: string
@@ -10,6 +9,15 @@ export interface TileResult {
   previewUrl: string
   row: number
   col: number
+}
+
+export interface ImageItem {
+  id: string
+  baseName: string
+  objectUrl: string
+  image: HTMLImageElement
+  size: { width: number; height: number }
+  tiles: TileResult[]
 }
 
 export type StatusKey =
@@ -31,14 +39,14 @@ interface ImageSlicerDeps {
   currentMessages: { value: LocaleMessages }
 }
 
+const AUTO_DOWNLOAD_KEY = 'igs:auto-download'
+
 export function useImageSlicer({ selectedPreset, exportFormat, jpgQuality, gridDescription, currentMessages }: ImageSlicerDeps) {
   const fileInput = ref<HTMLInputElement | null>(null)
-  const previewUrl = ref<string | null>(null)
-  const tiles = ref<TileResult[]>([])
-  const originalImage = shallowRef<HTMLImageElement | null>(null)
-  const originalObjectUrl = ref<string | null>(null)
-  const baseName = ref('tile')
-  const imageSize = ref<{ width: number; height: number } | null>(null)
+  const images = ref<ImageItem[]>([])
+  const autoDownload = ref(false)
+  const totalTiles = computed(() => images.value.reduce((sum, item) => sum + item.tiles.length, 0))
+  const firstImageSize = computed(() => images.value[0]?.size ?? null)
 
   const state = reactive({
     dragOver: false,
@@ -87,30 +95,46 @@ export function useImageSlicer({ selectedPreset, exportFormat, jpgQuality, gridD
 
   const clearError = () => setError('none')
 
-  const stripExtension = (name: string) => name.replace(/\.[^.]+$/, '') || 'tile'
-
-  const cleanupAll = () => {
-    if (previewUrl.value) {
-      URL.revokeObjectURL(previewUrl.value)
-      previewUrl.value = null
-    }
-    tiles.value.forEach((tile) => URL.revokeObjectURL(tile.previewUrl))
-    tiles.value = []
-    if (originalObjectUrl.value) {
-      URL.revokeObjectURL(originalObjectUrl.value)
-      originalObjectUrl.value = null
+  const persistAutoDownload = () => {
+    try {
+      localStorage.setItem(AUTO_DOWNLOAD_KEY, autoDownload.value ? '1' : '0')
+    } catch {
+      // ignore storage errors
     }
   }
 
-  const resetApp = () => {
-    cleanupAll()
-    originalImage.value = null
-    imageSize.value = null
-    baseName.value = 'tile'
+  const restoreAutoDownload = () => {
+    try {
+      autoDownload.value = localStorage.getItem(AUTO_DOWNLOAD_KEY) === '1'
+    } catch {
+      autoDownload.value = false
+    }
+  }
+
+  const setAutoDownload = (val: boolean) => {
+    autoDownload.value = val
+    persistAutoDownload()
+  }
+
+  const stripExtension = (name: string) => name.replace(/\.[^.]+$/, '') || 'tile'
+  const generateId = () => (crypto.randomUUID ? crypto.randomUUID() : `img-${Date.now()}-${Math.random().toString(16).slice(2)}`)
+
+  const cleanupItem = (item: ImageItem) => {
+    item.tiles.forEach((tile) => URL.revokeObjectURL(tile.previewUrl))
+    URL.revokeObjectURL(item.objectUrl)
+  }
+
+  const cleanupAll = () => {
+    images.value.forEach((item) => cleanupItem(item))
+    images.value = []
     state.dragOver = false
     clearError()
     state.processing = false
     setStatus('waiting')
+  }
+
+  const resetApp = () => {
+    cleanupAll()
     selectedPreset.value = selectedPreset.value
   }
 
@@ -139,7 +163,7 @@ export function useImageSlicer({ selectedPreset, exportFormat, jpgQuality, gridD
       )
     })
 
-  const splitImage = async (img: HTMLImageElement) => {
+  const splitImage = async (img: HTMLImageElement, baseName: string) => {
     const rects = computeTileRects(img.naturalWidth, img.naturalHeight, selectedPreset.value.rows, selectedPreset.value.cols)
     const result: TileResult[] = []
     const isSingleTile = rects.length === 1
@@ -172,7 +196,7 @@ export function useImageSlicer({ selectedPreset, exportFormat, jpgQuality, gridD
       }
 
       const url = URL.createObjectURL(finalBlob)
-      const nameBase = isSingleTile ? baseName.value : `${baseName.value}-r${rect.row}c${rect.col}`
+      const nameBase = isSingleTile ? baseName : `${baseName}-r${rect.row}c${rect.col}`
       result.push({
         name: `${nameBase}.${fileExt}`,
         blob: finalBlob,
@@ -185,10 +209,11 @@ export function useImageSlicer({ selectedPreset, exportFormat, jpgQuality, gridD
     return result
   }
 
-  const triggerDownloads = async () => {
-    if (!tiles.value.length) return
+  const downloadTiles = async (items: ImageItem[]) => {
+    const allTiles = items.flatMap((item) => item.tiles)
+    if (!allTiles.length) return
     setStatus('batchDownloading')
-    for (const tile of tiles.value) {
+    for (const tile of allTiles) {
       const link = document.createElement('a')
       link.href = tile.previewUrl
       link.download = tile.name
@@ -199,23 +224,29 @@ export function useImageSlicer({ selectedPreset, exportFormat, jpgQuality, gridD
       link.remove()
       await new Promise((r) => setTimeout(r, 80))
     }
-    setStatus('triggered', { count: tiles.value.length })
+    setStatus('triggered', { count: allTiles.length })
   }
 
-  const processAndDownload = async (autoDownload = true) => {
-    if (!originalImage.value || state.processing) return
+  const processAll = async (autoDownloadNow: boolean) => {
+    if (!images.value.length || state.processing) {
+      if (!images.value.length) setStatus('waiting')
+      return
+    }
     clearError()
     state.processing = true
     setStatus('processing')
-    tiles.value.forEach((tile) => URL.revokeObjectURL(tile.previewUrl))
-    tiles.value = []
+    images.value.forEach((item) => item.tiles.forEach((tile) => URL.revokeObjectURL(tile.previewUrl)))
+
     try {
-      const nextTiles = await splitImage(originalImage.value)
-      tiles.value = nextTiles
-      const payload = { count: nextTiles.length, grid: gridDescription.value }
-      setStatus(autoDownload ? 'finished' : 'manual', payload)
-      if (autoDownload) {
-        await triggerDownloads()
+      let totalCount = 0
+      for (const item of images.value) {
+        item.tiles = await splitImage(item.image, item.baseName)
+        totalCount += item.tiles.length
+      }
+      const payload = { count: totalCount, grid: gridDescription.value }
+      setStatus(autoDownloadNow ? 'finished' : 'manual', payload)
+      if (autoDownloadNow) {
+        await downloadTiles(images.value)
       }
     } catch (err) {
       setError('processingFailed', err instanceof Error ? err.message : '')
@@ -232,41 +263,74 @@ export function useImageSlicer({ selectedPreset, exportFormat, jpgQuality, gridD
       img.src = objectUrl
     })
 
-  const handleFile = async (file: File) => {
-    if (!file.type.startsWith('image/')) {
+  const addFiles = async (files: FileList | File[]) => {
+    const fileArray = Array.from(files)
+    const imageFiles = fileArray.filter((file) => file.type.startsWith('image/'))
+    if (imageFiles.length !== fileArray.length) {
       setError('invalidFile')
+    }
+    if (!imageFiles.length) {
       return
     }
 
-    cleanupAll()
-    baseName.value = stripExtension(file.name)
     setStatus('loading')
-    const objectUrl = URL.createObjectURL(file)
-    originalObjectUrl.value = objectUrl
+    for (const file of imageFiles) {
+      const objectUrl = URL.createObjectURL(file)
+      try {
+        const img = await loadImage(objectUrl)
+        images.value.push({
+          id: generateId(),
+          baseName: stripExtension(file.name),
+          objectUrl,
+          image: img,
+          size: { width: img.naturalWidth, height: img.naturalHeight },
+          tiles: [],
+        })
+      } catch (err) {
+        URL.revokeObjectURL(objectUrl)
+        setError('loadFailed', err instanceof Error ? err.message : '')
+      }
+    }
 
+    await processAll(autoDownload.value)
+  }
+
+  const triggerDownloads = async () => {
+    if (!images.value.length) return
+    await processAll(false)
+    await downloadTiles(images.value)
+  }
+
+  const downloadSingleImage = async (id: string) => {
+    const target = images.value.find((img) => img.id === id)
+    if (!target || state.processing) return
+    clearError()
+    state.processing = true
+    setStatus('processing')
+    target.tiles.forEach((tile) => URL.revokeObjectURL(tile.previewUrl))
     try {
-      const img = await loadImage(objectUrl)
-      originalImage.value = img
-      imageSize.value = { width: img.naturalWidth, height: img.naturalHeight }
-      previewUrl.value = objectUrl
-      await processAndDownload(true)
+      target.tiles = await splitImage(target.image, target.baseName)
+      setStatus('manual', { count: target.tiles.length, grid: gridDescription.value })
+      await downloadTiles([target])
     } catch (err) {
-      setError('loadFailed', err instanceof Error ? err.message : '')
+      setError('processingFailed', err instanceof Error ? err.message : '')
+    } finally {
+      state.processing = false
     }
   }
 
   const onFileChange = async (event: Event) => {
     const target = event.target as HTMLInputElement
-    const file = target.files?.[0]
-    if (file) await handleFile(file)
+    const files = target.files
+    if (files && files.length) await addFiles(files)
     target.value = ''
   }
 
   const onDrop = async (event: DragEvent) => {
     event.preventDefault()
     state.dragOver = false
-    const file = event.dataTransfer?.files?.[0]
-    if (file) await handleFile(file)
+    const files = event.dataTransfer?.files
+    if (files && files.length) await addFiles(files)
   }
 
   const onDragOver = (event: DragEvent) => {
@@ -286,28 +350,32 @@ export function useImageSlicer({ selectedPreset, exportFormat, jpgQuality, gridD
   const handleGlobalDrop = async (event: DragEvent) => {
     event.preventDefault()
     state.dragOver = false
-    const file = event.dataTransfer?.files?.[0]
-    if (file) await handleFile(file)
+    const files = event.dataTransfer?.files
+    if (files && files.length) await addFiles(files)
   }
+
+  // 初始化持久化的自动下载开关
+  restoreAutoDownload()
 
   return {
     fileInput,
-    previewUrl,
-    tiles,
-    originalImage,
-    baseName,
-    imageSize,
+    images,
+    totalTiles,
+    autoDownload,
+    firstImageSize,
     state,
     statusText,
     statusState,
     setStatus,
+    setAutoDownload,
     setError,
     clearError,
     cleanupAll,
     resetApp,
     triggerDownloads,
-    processAndDownload,
-    handleFile,
+    downloadSingleImage,
+    processAll,
+    addFiles,
     onFileChange,
     onDrop,
     onDragOver,

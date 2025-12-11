@@ -10,18 +10,21 @@ type Translations = Record<
     buttons: {
       chooseImage: string
       reDownload: string
+      downloadAll: string
+      downloadImage: string
       clear: string
       expandPresets: string
       collapsePresets: string
       useCustom: string
       downloadAgain: string
       processing: string
+      autoDownload: string
     }
     stats: { currentGrid: string; tileCount: string; imageSize: string; exportFormat: string; downloadStatus: string; notLoaded: string }
     grid: { eyebrow: string; title: string; subtitle: string; columns: string; rows: string; apply: string }
-    export: { eyebrow: string; title: string; subtitle: string; formatLabel: string; qualityLabel: string; qualityAria: string }
-    upload: { title: string; subtitle: string; tip: string; currentPrefix: string; sizePrefix: string }
-    results: { original: string; emptyUpload: string; result: string; waiting: string; previewPlaceholder: string }
+    export: { eyebrow: string; title: string; subtitle: string; formatLabel: string; qualityLabel: string; qualityAria: string; autoDownloadLabel: string; autoDownloadHint: string }
+    upload: { title: string; subtitle: string; tip: string; currentPrefix: string; sizePrefix: string; queuePrefix: (count: number) => string }
+    results: { original: string; emptyUpload: string; result: string; waiting: string; previewPlaceholder: string; queueSummary: (count: number) => string }
     status: {
       waiting: string
       batchDownloading: string
@@ -41,8 +44,11 @@ type Translations = Record<
       gridDescription: (cols: number, rows: number) => string
       presetSub: (cols: number, rows: number) => string
       imageSize: (width: number, height: number) => string
+      imageCount: (count: number) => string
+      imageCountWithSize: (count: number, width: number, height: number) => string
       tilesHeading: (count: number) => string
       resultsSummary: (grid: string, base: string, fmt: string, quality: string, isJpg: boolean) => string
+      resultsSummaryMulti: (grid: string, fmt: string, count: number, isJpg: boolean, quality: string) => string
     }
     aria: { github: string; language: string }
   }
@@ -61,12 +67,15 @@ const translations: Translations = {
     buttons: {
       chooseImage: '选择图片',
       reDownload: '重新触发下载',
+      downloadAll: '下载全部',
+      downloadImage: '下载此图片',
       clear: '清除当前图片',
       expandPresets: '展开更多预设',
       collapsePresets: '收起预设',
       useCustom: '使用自定义网格',
       downloadAgain: '再次下载',
       processing: '处理中...',
+      autoDownload: '自动下载',
     },
     stats: {
       currentGrid: '当前网格',
@@ -91,6 +100,8 @@ const translations: Translations = {
       formatLabel: '输出格式',
       qualityLabel: '压缩强度',
       qualityAria: 'JPG 压缩强度',
+      autoDownloadLabel: '自动下载切片',
+      autoDownloadHint: '默认关闭；开启后裁切完成即触发下载，未开启则需手动点击“下载全部”或逐图下载。',
     },
     upload: {
       title: '拖拽图片到此处，或点击选择',
@@ -98,6 +109,7 @@ const translations: Translations = {
       tip: '提示：若浏览器阻止多文件下载，请在地址栏允许该站点的批量下载。',
       currentPrefix: '当前：',
       sizePrefix: '尺寸：',
+      queuePrefix: (count: number) => `已添加 ${count} 张图片`,
     },
     results: {
       original: '原图',
@@ -105,6 +117,7 @@ const translations: Translations = {
       result: '裁切结果',
       waiting: '等待裁切',
       previewPlaceholder: '裁切完成后将在此展示切片预览',
+      queueSummary: (count: number) => `队列中有 ${count} 张图片`,
     },
     status: {
       waiting: '等待上传图片并选择网格',
@@ -125,10 +138,16 @@ const translations: Translations = {
       gridDescription: (cols: number, rows: number) => `${cols} 列 x ${rows} 行`,
       presetSub: (cols: number, rows: number) => `${cols} 列 · ${rows} 行`,
       imageSize: (width: number, height: number) => `${width} x ${height}`,
+      imageCount: (count: number) => `${count} 张图片`,
+      imageCountWithSize: (count: number, width: number, height: number) => `${count} 张图片 · 首张 ${width} x ${height}`,
       tilesHeading: (count: number) => (count ? `${count} 个切片` : '等待裁切'),
       resultsSummary: (grid: string, base: string, fmt: string, quality: string, isJpg: boolean) => {
         const qualityText = isJpg ? `（质量 ${quality}）` : ''
         return `网格：${grid}，文件名前缀：${base}，格式：${fmt}${qualityText}`
+      },
+      resultsSummaryMulti: (grid: string, fmt: string, count: number, isJpg: boolean, quality: string) => {
+        const qualityText = isJpg ? `（质量 ${quality}）` : ''
+        return `网格：${grid}，图片数：${count}，格式：${fmt}${qualityText}`
       },
     },
     aria: {
@@ -146,12 +165,15 @@ const translations: Translations = {
     buttons: {
       chooseImage: 'Choose image',
       reDownload: 'Trigger downloads',
+      downloadAll: 'Download all',
+      downloadImage: 'Download this image',
       clear: 'Clear image',
       expandPresets: 'Show more presets',
       collapsePresets: 'Hide presets',
       useCustom: 'Apply custom grid',
       downloadAgain: 'Download again',
       processing: 'Processing...',
+      autoDownload: 'Auto download',
     },
     stats: {
       currentGrid: 'Current grid',
@@ -176,6 +198,8 @@ const translations: Translations = {
       formatLabel: 'Output format',
       qualityLabel: 'Quality',
       qualityAria: 'JPG quality',
+      autoDownloadLabel: 'Auto download tiles',
+      autoDownloadHint: 'Off by default. When enabled, slicing completion triggers downloads; otherwise click “Download all” or per-image download.',
     },
     upload: {
       title: 'Drop image here or click to select',
@@ -183,6 +207,7 @@ const translations: Translations = {
       tip: 'Tip: if the browser blocks multi-file downloads, allow batch downloads for this site.',
       currentPrefix: 'Current:',
       sizePrefix: 'Size:',
+      queuePrefix: (count: number) => `${count} images added`,
     },
     results: {
       original: 'Original',
@@ -190,6 +215,7 @@ const translations: Translations = {
       result: 'Sliced results',
       waiting: 'Waiting to slice',
       previewPlaceholder: 'Tile previews will appear here after slicing',
+      queueSummary: (count: number) => `${count} image(s) in queue`,
     },
     status: {
       waiting: 'Waiting for image upload and grid selection',
@@ -210,10 +236,16 @@ const translations: Translations = {
       gridDescription: (cols: number, rows: number) => `${cols} cols x ${rows} rows`,
       presetSub: (cols: number, rows: number) => `${cols} cols · ${rows} rows`,
       imageSize: (width: number, height: number) => `${width} x ${height}`,
+      imageCount: (count: number) => `${count} images`,
+      imageCountWithSize: (count: number, width: number, height: number) => `${count} images · first ${width} x ${height}`,
       tilesHeading: (count: number) => (count ? `${count} tiles` : 'Waiting to slice'),
       resultsSummary: (grid: string, base: string, fmt: string, quality: string, isJpg: boolean) => {
         const qualityText = isJpg ? ` (quality ${quality})` : ''
         return `Grid: ${grid}, prefix: ${base}, format: ${fmt}${qualityText}`
+      },
+      resultsSummaryMulti: (grid: string, fmt: string, count: number, isJpg: boolean, quality: string) => {
+        const qualityText = isJpg ? ` (quality ${quality})` : ''
+        return `Grid: ${grid}, images: ${count}, format: ${fmt}${qualityText}`
       },
     },
     aria: {
