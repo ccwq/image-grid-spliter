@@ -2,6 +2,7 @@ import imageCompression from 'browser-image-compression'
 import { computed, reactive, ref } from 'vue'
 import { computeTileRects, type GridPreset } from '../utils/grid'
 import type { LocaleMessages, ExportFormat } from './useLocale'
+import {fileSha256} from "../utils/fileUtils.ts";
 
 export interface TileResult {
   name: string
@@ -265,7 +266,11 @@ export function useImageSlicer({ selectedPreset, exportFormat, jpgQuality, gridD
 
   const addFiles = async (files: FileList | File[]) => {
     const fileArray = Array.from(files)
-    const imageFiles = fileArray.filter((file) => file.type.startsWith('image/'))
+    const  imageFiles = fileArray.filter((file) => file.type.startsWith('image/'))
+    const getFileId = (file: File):string => {
+      return [file.name, file.lastModified, file.size].join('-');
+    }
+
     if (imageFiles.length !== fileArray.length) {
       setError('invalidFile')
     }
@@ -276,10 +281,16 @@ export function useImageSlicer({ selectedPreset, exportFormat, jpgQuality, gridD
     setStatus('loading')
     for (const file of imageFiles) {
       const objectUrl = URL.createObjectURL(file)
+      const shaId = await fileSha256(file);
+
+      const againAdded = images.value.find(el => el.id == shaId);
+
+      // 避免重复添加
+      if(againAdded) continue;
       try {
         const img = await loadImage(objectUrl)
         images.value.push({
-          id: generateId(),
+          id: shaId,
           baseName: stripExtension(file.name),
           objectUrl,
           image: img,
