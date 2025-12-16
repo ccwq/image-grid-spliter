@@ -12,6 +12,9 @@ type Translations = Record<
       reDownload: string
       downloadAll: string
       downloadImage: string
+      previewTile: string
+      previewAll: string
+      previewDownload: string
       clear: string
       expandPresets: string
       collapsePresets: string
@@ -69,6 +72,9 @@ const translations: Translations = {
       reDownload: '重新触发下载',
       downloadAll: '下载全部',
       downloadImage: '下载此图片',
+      previewTile: '预览此切片',
+      previewAll: '预览全部切片',
+      previewDownload: '下载当前切片',
       clear: '清除当前图片',
       expandPresets: '展开更多预设',
       collapsePresets: '收起预设',
@@ -167,6 +173,9 @@ const translations: Translations = {
       reDownload: 'Trigger downloads',
       downloadAll: 'Download all',
       downloadImage: 'Download this image',
+      previewTile: 'Preview this tile',
+      previewAll: 'Preview all tiles',
+      previewDownload: 'Download current tile',
       clear: 'Clear image',
       expandPresets: 'Show more presets',
       collapsePresets: 'Hide presets',

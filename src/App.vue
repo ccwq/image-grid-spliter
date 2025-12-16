@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import PhotoSwipeLightbox from 'photoswipe/lightbox'
+import type { DataSourceItem } from 'photoswipe'
 import pixelarticons from '@iconify-json/pixelarticons/icons.json'
 import AppHeader from './components/AppHeader.vue'
 import HeroSection from './components/HeroSection.vue'
@@ -14,6 +16,7 @@ import { useImageSlicer } from './composables/useImageSlicer'
 import { gridPresets } from './utils/grid'
 import type { GridPreset } from './utils/grid'
 import type { ExportFormat } from './composables/useLocale'
+import 'photoswipe/style.css'
 
 const icons = {
   grid: pixelarticons.icons.grid,
@@ -105,6 +108,85 @@ const resultsSummary = computed(() =>
 )
 const firstBaseName = computed(() => images.value[0]?.baseName ?? 'tile')
 const queueSummary = computed(() => (images.value.length ? currentMessages.value.upload.queuePrefix(images.value.length) : ''))
+const triggerTileDownload = (src: string, name: string) => {
+  const link = document.createElement('a')
+  link.href = src
+  link.download = name
+  link.rel = 'noopener'
+  link.style.display = 'none'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+}
+const destroyLightbox = () => {
+  lightboxRef.value?.destroy()
+  lightboxRef.value = null
+  lightboxInitialized.value = false
+}
+const ensureLightbox = () => {
+  if (!lightboxRef.value) {
+    const lb = new PhotoSwipeLightbox({
+      pswpModule: () => import('photoswipe'),
+      wheelToZoom: true,
+      paddingFn: (viewportSize) => {
+        const width = (viewportSize as { x?: number; width?: number }).x ?? (viewportSize as { width?: number }).width ?? 0
+        const isMobileView = width > 0 ? width <= 640 : isMobile.value
+        return isMobileView
+          ? { top: 16, bottom: 24, left: 12, right: 12 }
+          : { top: 24, bottom: 32, left: 24, right: 24 }
+      },
+    })
+    lb.on('uiRegister', () => {
+      lb.pswp?.ui?.registerElement({
+        name: 'download-button',
+        order: 8,
+        isButton: true,
+        ariaLabel: currentMessages.value.buttons.previewDownload,
+        title: currentMessages.value.buttons.previewDownload,
+        html: '⬇',
+        onClick: () => {
+          const data = lb.pswp?.currSlide?.data as PreviewItem | undefined
+          if (!data?.src) return
+          triggerTileDownload(String(data.src), data.downloadName || 'tile')
+        },
+      })
+    })
+    lightboxRef.value = lb
+  }
+  lightboxRef.value.options.dataSource = previewItems.value
+  if (!lightboxInitialized.value) {
+    lightboxRef.value.init()
+    lightboxInitialized.value = true
+  }
+  return lightboxRef.value
+}
+const openPreview = (tileId?: string) => {
+  if (!previewItems.value.length) return
+  const lb = ensureLightbox()
+  const targetIndex = tileId ? previewIndexById.value.get(tileId) ?? 0 : 0
+  lb.loadAndOpen(targetIndex)
+}
+type PreviewItem = DataSourceItem & { tileId: string; downloadName: string }
+const previewItems = computed<PreviewItem[]>(() =>
+  images.value.flatMap((image) =>
+    image.tiles.map((tile) => ({
+      src: tile.previewUrl,
+      msrc: tile.previewUrl,
+      width: tile.width,
+      height: tile.height,
+      alt: tile.name,
+      tileId: tile.id,
+      downloadName: tile.name,
+    })),
+  ),
+)
+const previewIndexById = computed(() => {
+  const map = new Map<string, number>()
+  previewItems.value.forEach((item, index) => map.set(item.tileId, index))
+  return map
+})
+const lightboxRef = ref<PhotoSwipeLightbox | null>(null)
+const lightboxInitialized = ref(false)
 
 const errorText = computed(() => {
   if (state.errorKey === 'none') return ''
@@ -159,6 +241,8 @@ const handleAutoDownloadToggle = (value: boolean) => {
     processAll(true)
   }
 }
+const handlePreviewTile = (id?: string) => openPreview(id)
+const handlePreviewAll = () => openPreview()
 
 watch(selectedPreset, (preset) => {
   customRows.value = preset.rows
@@ -187,7 +271,32 @@ watch(jpgQualityPercent, (quality) => {
   }
 })
 
-watch(locale, (lang) => setDocumentLang(lang))
+watch(locale, (lang) => {
+  setDocumentLang(lang)
+  destroyLightbox()
+})
+watch(
+  previewItems,
+  (list, prev) => {
+    if (!list.length) {
+      destroyLightbox()
+      return
+    }
+    if (lightboxRef.value?.pswp) {
+      lightboxRef.value.options.dataSource = list
+      const listLengthChanged = prev?.length !== list.length
+      if (listLengthChanged) {
+        const currentId = (lightboxRef.value.pswp.currSlide?.data as PreviewItem | undefined)?.tileId
+        const targetId = (currentId && list.some((item) => item.tileId === currentId)) ? currentId : list[0].tileId
+        lightboxRef.value.pswp.close()
+        lightboxInitialized.value = false
+        lightboxRef.value = null
+        requestAnimationFrame(() => openPreview(targetId))
+      }
+    }
+  },
+  { deep: true },
+)
 
 onMounted(() => {
   setDocumentLang(locale.value)
@@ -203,6 +312,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('dragover', handleGlobalDragOver)
   window.removeEventListener('drop', handleGlobalDrop)
   window.removeEventListener('resize', syncMobileFlag)
+  destroyLightbox()
 })
 </script>
 
@@ -298,6 +408,8 @@ onBeforeUnmount(() => {
       @toggle-auto-download="handleAutoDownloadToggle"
       @trigger-downloads="triggerDownloads"
       @download-image="downloadSingleImage"
+      @preview-tile="handlePreviewTile"
+      @preview-all="handlePreviewAll"
     />
   </main>
 </template>
@@ -855,6 +967,14 @@ onBeforeUnmount(() => {
   gap: 8px;
 }
 
+.tiles-actions {
+  display: inline-flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+}
+
 .tiles-grid {
   margin-top: 10px;
   display: grid;
@@ -900,6 +1020,7 @@ onBeforeUnmount(() => {
   background: rgba(255, 255, 255, 0.03);
   display: grid;
   gap: 6px;
+  cursor: pointer;
 }
 
 .tile img {
@@ -910,11 +1031,32 @@ onBeforeUnmount(() => {
   aspect-ratio: 1 / 1;
 }
 
+.tile-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .tile-name {
   font-size: 12px;
   color: #cbd5e1;
   word-break: break-all;
   margin: 0;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: #93c5fd;
+  font-size: 12px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.link-btn:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;
 }
 
 @media (max-width: 960px) {

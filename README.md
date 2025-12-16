@@ -7,6 +7,7 @@ Purely frontend image grid slicer built with Vite + Vue 3 + TypeScript. Upload o
 ## Features
 - Presets: 1x1 (compress-only), 2x2, 3x3, 4x4, 2x3, 2x4, 3x2, 4x2, 5x2, 2x5.
 - Browser-based slicing and batch download (requests multi-file permission).
+- Slice preview: swipe/zoom through all tiles and download the current tile directly in preview (PhotoSwipe-powered).
 - Mobile-friendly responsive layout; PWA installable and offline-ready.
 - Localization: English/Chinese with browser-language default and in-app switcher.
 - Decorative pixel icons via `@iconify-json/pixelarticons` + `@iconify/vue`.

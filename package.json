@@ -2,7 +2,7 @@
   "name": "image-grid-spliter",
   "description": "图片网格裁切 PWA，支持预设网格、批量下载、移动端适配与 GitHub Pages 部署。",
   "private": true,
-  "version": "1.0.4",
+  "version": "1.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -15,6 +15,7 @@
     "@iconify-json/pixelarticons": "^1.2.2",
     "@iconify/vue": "^5.0.0",
     "browser-image-compression": "^2.0.2",
+    "photoswipe": "^5.4.4",
     "vue": "^3.5.24",
     "workbox-window": "^7.4.0"
   },

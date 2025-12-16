@@ -5,11 +5,14 @@ import type { LocaleMessages, ExportFormat } from './useLocale'
 import {fileSha256} from "../utils/fileUtils.ts";
 
 export interface TileResult {
+  id: string
   name: string
   blob: Blob
   previewUrl: string
   row: number
   col: number
+  width: number
+  height: number
 }
 
 export interface ImageItem {
@@ -201,11 +204,14 @@ export function useImageSlicer({ selectedPreset, exportFormat, jpgQuality, gridD
       const url = URL.createObjectURL(finalBlob)
       const nameBase = isSingleTile ? baseName : `${baseName}-r${rect.row}c${rect.col}`
       result.push({
+        id: `${baseName}-${rect.row}-${rect.col}-${crypto.randomUUID ? crypto.randomUUID() : Date.now()}`,
         name: `${nameBase}.${fileExt}`,
         blob: finalBlob,
         previewUrl: url,
         row: rect.row,
         col: rect.col,
+        width: rect.width,
+        height: rect.height,
       })
     }
 
