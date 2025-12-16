@@ -11,6 +11,10 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(appVersion),
   },
+  server:{
+    host: "0.0.0.0",
+    allowedHosts: true,
+  },
   plugins: [
     vue(),
     VitePWA({
