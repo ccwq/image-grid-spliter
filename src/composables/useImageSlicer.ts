@@ -46,6 +46,8 @@ export function useImageSlicer({ selectedPreset, exportFormat, jpgQuality, gridD
   const fileInput = ref<HTMLInputElement | null>(null)
   const images = ref<ImageItem[]>([])
   const autoDownload = ref(false)
+  // 记录正在入队的文件，防止并发/重复触发的拖拽导致重复添加
+  const pendingIds = new Set<string>()
   const totalTiles = computed(() => images.value.reduce((sum, item) => sum + item.tiles.length, 0))
   const firstImageSize = computed(() => images.value[0]?.size ?? null)
 
@@ -281,12 +283,15 @@ export function useImageSlicer({ selectedPreset, exportFormat, jpgQuality, gridD
     setStatus('loading')
     for (const file of imageFiles) {
       const objectUrl = URL.createObjectURL(file)
-      const shaId = await fileSha256(file);
+      const shaId = await fileSha256(file)
 
-      const againAdded = images.value.find(el => el.id == shaId);
+      // 已在队列或正在处理中，直接跳过并回收临时 URL
+      if (images.value.find((el) => el.id === shaId) || pendingIds.has(shaId)) {
+        URL.revokeObjectURL(objectUrl)
+        continue
+      }
 
-      // 避免重复添加
-      if(againAdded) continue;
+      pendingIds.add(shaId)
       try {
         const img = await loadImage(objectUrl)
         images.value.push({
@@ -300,6 +305,8 @@ export function useImageSlicer({ selectedPreset, exportFormat, jpgQuality, gridD
       } catch (err) {
         URL.revokeObjectURL(objectUrl)
         setError('loadFailed', err instanceof Error ? err.message : '')
+      } finally {
+        pendingIds.delete(shaId)
       }
     }
 
@@ -339,6 +346,7 @@ export function useImageSlicer({ selectedPreset, exportFormat, jpgQuality, gridD
 
   const onDrop = async (event: DragEvent) => {
     event.preventDefault()
+    event.stopPropagation()
     state.dragOver = false
     const files = event.dataTransfer?.files
     if (files && files.length) await addFiles(files)
@@ -360,6 +368,7 @@ export function useImageSlicer({ selectedPreset, exportFormat, jpgQuality, gridD
 
   const handleGlobalDrop = async (event: DragEvent) => {
     event.preventDefault()
+    event.stopPropagation()
     state.dragOver = false
     const files = event.dataTransfer?.files
     if (files && files.length) await addFiles(files)
