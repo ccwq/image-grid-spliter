@@ -108,6 +108,9 @@ const resultsSummary = computed(() =>
 )
 const firstBaseName = computed(() => images.value[0]?.baseName ?? 'tile')
 const queueSummary = computed(() => (images.value.length ? currentMessages.value.upload.queuePrefix(images.value.length) : ''))
+const previewActive = ref(false)
+const previewStatePushed = ref(false)
+const closingFromPop = ref(false)
 const triggerTileDownload = (src: string, name: string) => {
   const link = document.createElement('a')
   link.href = src
@@ -122,6 +125,7 @@ const destroyLightbox = () => {
   lightboxRef.value?.destroy()
   lightboxRef.value = null
   lightboxInitialized.value = false
+  previewActive.value = false
 }
 const ensureLightbox = () => {
   if (!lightboxRef.value) {
@@ -151,6 +155,14 @@ const ensureLightbox = () => {
         },
       })
     })
+    lb.on('close', () => {
+      previewActive.value = false
+      if (previewStatePushed.value && !closingFromPop.value) {
+        previewStatePushed.value = false
+        history.back()
+      }
+      closingFromPop.value = false
+    })
     lightboxRef.value = lb
   }
   lightboxRef.value.options.dataSource = previewItems.value
@@ -164,7 +176,20 @@ const openPreview = (tileId?: string) => {
   if (!previewItems.value.length) return
   const lb = ensureLightbox()
   const targetIndex = tileId ? previewIndexById.value.get(tileId) ?? 0 : 0
+  if (!previewStatePushed.value) {
+    history.pushState({ igsPreview: true, t: Date.now() }, '', window.location.href)
+    previewStatePushed.value = true
+  }
+  previewActive.value = true
   lb.loadAndOpen(targetIndex)
+}
+const handleBackNavigation = (evt: PopStateEvent) => {
+  if (previewActive.value) {
+    closingFromPop.value = true
+    lightboxRef.value?.pswp?.close()
+    previewStatePushed.value = false
+    evt.preventDefault?.()
+  }
 }
 type PreviewItem = DataSourceItem & { tileId: string; downloadName: string }
 const previewItems = computed<PreviewItem[]>(() =>
@@ -280,6 +305,8 @@ watch(
   (list, prev) => {
     if (!list.length) {
       destroyLightbox()
+      previewStatePushed.value = false
+      closingFromPop.value = false
       return
     }
     if (lightboxRef.value?.pswp) {
@@ -305,6 +332,7 @@ onMounted(() => {
   window.addEventListener('dragover', handleGlobalDragOver)
   window.addEventListener('drop', handleGlobalDrop)
   window.addEventListener('resize', syncMobileFlag)
+  window.addEventListener('popstate', handleBackNavigation)
   syncMobileFlag()
 })
 
@@ -312,6 +340,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('dragover', handleGlobalDragOver)
   window.removeEventListener('drop', handleGlobalDrop)
   window.removeEventListener('resize', syncMobileFlag)
+  window.removeEventListener('popstate', handleBackNavigation)
   destroyLightbox()
 })
 </script>
