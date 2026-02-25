@@ -91,6 +91,11 @@ select option {
   color: #e2e8f0;
 }
 
+/* PhotoSwipe 下载按钮样式 */
+.pswp__button--download-button {
+  color: #ffffff !important;
+}
+
 @media (max-width: 768px) {
   body {
     font-size: 13px;
