@@ -1,0 +1,21 @@
+{
+  "title": "Interactive grid slicing and presets",
+  "slug": "interactive-grid-slicing",
+  "created_at": "2026-07-15T07:33:53+00:00",
+  "status": "complete",
+  "approval": {
+    "required": false,
+    "granted": true,
+    "notes": "用户在本对话明确要求开始实施。"
+  },
+  "packets": [
+    {"id":"01-slicing-model","status":"complete"},
+    {"id":"02-preset-storage","status":"complete"},
+    {"id":"03-editor-ui","status":"complete"},
+    {"id":"04-integration","status":"complete"}
+  ],
+  "verification": {
+    "status": "complete",
+    "checks": ["pnpm test", "pnpm exec vue-tsc --noEmit", "pnpm build", "openspec validate add-interactive-grid-slicing --strict", "browser smoke test via CDP 9696"]
+  }
+}
