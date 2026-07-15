@@ -1,6 +1,6 @@
 import imageCompression from 'browser-image-compression'
 import { computed, reactive, ref } from 'vue'
-import { computeTileRects, type GridPreset } from '../utils/grid'
+import { computeTileRectsFromLines, type GridPreset, type SlicePlan } from '../utils/grid'
 import type { LocaleMessages, ExportFormat } from './useLocale'
 import {fileSha256} from "../utils/fileUtils.ts";
 
@@ -37,6 +37,7 @@ export type ErrorKey = 'none' | 'invalidFile' | 'processingFailed' | 'loadFailed
 
 interface ImageSlicerDeps {
   selectedPreset: { value: GridPreset }
+  slicePlan: { value: SlicePlan }
   exportFormat: { value: ExportFormat }
   jpgQuality: { value: number }
   gridDescription: { value: string }
@@ -45,7 +46,7 @@ interface ImageSlicerDeps {
 
 const AUTO_DOWNLOAD_KEY = 'igs:auto-download'
 
-export function useImageSlicer({ selectedPreset, exportFormat, jpgQuality, gridDescription, currentMessages }: ImageSlicerDeps) {
+export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQuality, gridDescription, currentMessages }: ImageSlicerDeps) {
   const fileInput = ref<HTMLInputElement | null>(null)
   const images = ref<ImageItem[]>([])
   const autoDownload = ref(false)
@@ -170,7 +171,8 @@ export function useImageSlicer({ selectedPreset, exportFormat, jpgQuality, gridD
     })
 
   const splitImage = async (img: HTMLImageElement, baseName: string) => {
-    const rects = computeTileRects(img.naturalWidth, img.naturalHeight, selectedPreset.value.rows, selectedPreset.value.cols)
+    const rects = computeTileRectsFromLines(img.naturalWidth, img.naturalHeight, slicePlan.value)
+      .filter((rect) => rect.width > 0 && rect.height > 0)
     const result: TileResult[] = []
     const isSingleTile = rects.length === 1
     const fileExt = exportFormat.value === 'png' ? 'png' : 'jpg'

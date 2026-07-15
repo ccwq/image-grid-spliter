@@ -11,6 +11,7 @@ interface Props {
   autoDownload: boolean
   processing: boolean
   icons: Record<string, unknown>
+  collapsed: boolean
 }
 
 const props = defineProps<Props>()
@@ -20,6 +21,7 @@ const emit = defineEmits<{
   (e: 'download-image', id: string): void
   (e: 'preview-tile', id: string): void
   (e: 'preview-all'): void
+  (e: 'toggle-collapsed'): void
 }>()
 </script>
 
@@ -31,6 +33,7 @@ const emit = defineEmits<{
         <h3>{{ props.tilesHeading }}</h3>
         <p class="muted">{{ props.resultsSummary }}</p>
         <p class="muted">{{ props.tr.results.queueSummary(props.images.length) }}</p>
+        <button class="link-btn" type="button" @click="emit('toggle-collapsed')">{{ props.collapsed ? '查看宫格' : '收起宫格' }}</button>
       </div>
       <div class="results-actions">
         <label class="auto-toggle">
@@ -49,7 +52,7 @@ const emit = defineEmits<{
         </button>
       </div>
     </div>
-    <div class="image-list">
+    <div v-if="!props.collapsed" class="image-list">
       <div v-for="image in props.images" :key="image.id" class="image-block">
         <div class="preview-card">
           <p class="eyebrow">

@@ -18,9 +18,7 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: radial-gradient(circle at 20% 20%, rgba(79, 70, 229, 0.15), transparent 35%),
-    radial-gradient(circle at 80% 0%, rgba(14, 165, 233, 0.18), transparent 25%),
-    #0f172a;
+  background: #0f1a20;
   color: #e2e8f0;
   font-size: 15px;
 }
@@ -39,22 +37,30 @@ a {
 button {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  border: 1px solid transparent;
-  border-radius: 12px;
-  padding: 8px 12px;
-  font-size: 14px;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  border: 1px solid #386169;
+  border-radius: 8px;
+  padding: 5px 9px;
+  font-size: 13px;
+  line-height: 1.2;
   font-weight: 600;
-  color: #0b1221;
-  background: linear-gradient(90deg, #a5b4fc, #38bdf8);
-  box-shadow: 0 10px 30px rgba(59, 130, 246, 0.2);
+  color: #e6f6f1;
+  background: #244047;
+  box-shadow: none;
   cursor: pointer;
-  transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+  transition: transform 0.12s ease, border-color 0.12s ease, background-color 0.12s ease, opacity 0.12s ease;
 }
 
 button:hover {
   transform: translateY(-1px);
-  box-shadow: 0 14px 32px rgba(56, 189, 248, 0.24);
+  border-color: #62c6b4;
+  background: #2a4b52;
+}
+
+button:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
 }
 
 button:disabled {
@@ -76,13 +82,46 @@ select {
   font-family: inherit;
 }
 
+input[type='number'],
+input[type='text'],
+textarea,
 select {
-  padding: 6px 10px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.06);
-  color: #e2e8f0;
+  min-height: 32px;
+  padding: 5px 8px;
+  border: 1px solid #386169;
+  border-radius: 8px;
+  background: #101f25;
+  color: #e6f6f1;
   outline: none;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease;
+}
+
+input[type='number'] {
+  width: 72px;
+}
+
+input[type='number']:hover,
+input[type='text']:hover,
+textarea:hover,
+select:hover {
+  border-color: #5ca99d;
+}
+
+input[type='number']:focus-visible,
+input[type='text']:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  border-color: #68d2be;
+  box-shadow: 0 0 0 3px rgb(104 210 190 / .18);
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: #57cbb6;
+}
+
+input[type='range'] {
+  accent-color: #57cbb6;
 }
 
 /* 让下拉项在深色主题下也保持统一色调 */
@@ -104,7 +143,7 @@ select option {
     padding: 10px 12px;
   }
   button {
-    padding: 8px 10px;
-    font-size: 13px;
+    min-height: 32px;
+    padding: 5px 8px;
   }
 }

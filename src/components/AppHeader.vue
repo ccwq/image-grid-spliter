@@ -54,3 +54,11 @@ const onLocaleChange = (event: Event) => {
     </div>
   </header>
 </template>
+
+<style scoped>
+.app-header { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 64px; padding: 10px 12px; border: 1px solid rgb(203 239 231 / .15); border-radius: 14px; background: #152129; }
+.brand, .header-actions, .lang-switcher { display: flex; align-items: center; }
+.brand { min-width: 0; gap: 10px; }.header-actions { gap: 8px; }.lang-switcher { gap: 6px; padding: 5px 8px; border: 1px solid rgb(203 239 231 / .15); border-radius: 10px; background: #1b2a32; }
+.logo-mark { display: grid; width: 36px; height: 36px; flex: 0 0 auto; place-items: center; overflow: hidden; border-radius: 10px; }.logo-mark img { width: 28px; height: 28px; }.brand-text { display: grid; min-width: 0; gap: 2px; }.brand-title { overflow: hidden; font-size: 14px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }.brand-version { color: #9eb7b4; font-size: 11px; }.lang-icon { width: 15px; height: 15px; color: #8fd7ca; }.lang-switcher select { max-width: 92px; padding: 3px; border: 0; background: transparent; color: #eaf4f1; }.icon-button { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid rgb(203 239 231 / .15); border-radius: 10px; color: #baffef; }.icon-button svg { width: 17px; height: 17px; }
+@media (max-width: 520px) { .app-header { min-height: 54px; padding: 7px 8px; }.logo-mark { width: 30px; height: 30px; }.logo-mark img { width: 25px; height: 25px; }.brand-version { display: none; }.lang-switcher { padding: 4px 6px; }.lang-switcher select { max-width: 70px; font-size: 12px; }.icon-button { width: 30px; height: 30px; } }
+</style>

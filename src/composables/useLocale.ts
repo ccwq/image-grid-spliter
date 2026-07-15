@@ -65,7 +65,7 @@ const translations: Translations = {
       eyebrow: 'PWA · 离线可用 · 移动端适配',
       title: '图片网格裁切器',
       description: '上传/拖拽图片，选择预设网格，自动裁切并批量下载结果',
-      hint: '支持：1x1（纯压缩）、2x2、3x3、4x4、2x3、2x4、3x2、4x2、5x2、2x5。请允许浏览器多文件下载。',
+      hint: '支持：1x1（纯压缩）、1x2、2x1、2x2、3x3、4x4、2x4、4x2。请允许浏览器多文件下载。',
     },
     buttons: {
       chooseImage: '选择图片',
@@ -166,7 +166,7 @@ const translations: Translations = {
       eyebrow: 'PWA · Offline ready · Mobile friendly',
       title: 'Image Grid Spliter',
       description: 'Upload or drag an image, choose a preset grid, auto slice and batch download',
-      hint: 'Supports: 1x1 (compress only), 2x2, 3x3, 4x4, 2x3, 2x4, 3x2, 4x2, 5x2, 2x5. Please allow multi-file downloads.',
+      hint: 'Supports: 1x1 (compress only), 1x2, 2x1, 2x2, 3x3, 4x4, 2x4, 4x2. Please allow multi-file downloads.',
     },
     buttons: {
       chooseImage: 'Choose image',
