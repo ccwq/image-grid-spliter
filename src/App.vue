@@ -4,6 +4,7 @@ import PhotoSwipeLightbox from 'photoswipe/lightbox'
 import type { DataSourceItem } from 'photoswipe'
 import pixelarticons from '@iconify-json/pixelarticons/icons.json'
 import AppHeader from './components/AppHeader.vue'
+import ExportProgressOverlay from './components/ExportProgressOverlay.vue'
 import ExportSettings from './components/ExportSettings.vue'
 import GridPresetsPanel from './components/GridPresetsPanel.vue'
 import HeroSection from './components/HeroSection.vue'
@@ -25,6 +26,7 @@ const editorExpanded = ref(false)
 const resultsCollapsed = ref(false)
 const edgeEraseEnabled = ref(false)
 const edgeErasePadding = ref(1)
+const controlsExpanded = ref(false)
 
 const planForGrid = (preset: GridPreset): SlicePlan => ({ horizontalLines: createEvenDividerLines(preset.rows), verticalLines: createEvenDividerLines(preset.cols), padding: edgeEraseEnabled.value ? edgeErasePadding.value : 0, paddingUnit: 'percent', trimOuterEdges: false })
 const { locale, currentMessages, tr, supportedLocales, switchLocale, setDocumentLang } = useLocale()
@@ -36,7 +38,7 @@ const editableGridDescription = computed(() => currentMessages.value.format.grid
 const {
   fileInput, images, totalTiles, autoDownload, firstImageSize, state, statusText, clearError, resetApp, triggerDownloads, processAll,
   onFileChange, onDrop, onDragOver, onDragLeave, handleGlobalDragOver, handleGlobalDrop, triggerFileSelect,
-  setAutoDownload, downloadSingleImage, directoryExportSupported, directoryExportReady, pendingTraditionalDownloads, changeExportDirectory, retryPendingTraditionalDownloads,
+  setAutoDownload, downloadSingleImage, directoryExportSupported, directoryExportReady, pendingTraditionalDownloads, changeExportDirectory, retryPendingTraditionalDownloads, exportProgress, dismissExportProgress, cancelProcessing,
 } = useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQuality, gridDescription: editableGridDescription, currentMessages })
 
 const hasImage = computed(() => images.value.length > 0)
@@ -54,6 +56,7 @@ const updateEdgeErasePadding = (value: number) => { edgeErasePadding.value = Mat
 const updateEdgeEraseEnabled = (value: boolean) => { edgeEraseEnabled.value = value; updateSlicePlan({ padding: value ? edgeErasePadding.value : 0 }) }
 const updateHorizontalLines = (lines: number[]) => updateSlicePlan({ horizontalLines: lines.map((line) => line / 100) })
 const updateVerticalLines = (lines: number[]) => updateSlicePlan({ verticalLines: lines.map((line) => line / 100) })
+const confirmEditorLines = (lines: { horizontal: number[]; vertical: number[] }) => updateSlicePlan({ horizontalLines: lines.horizontal.map((line) => line / 100), verticalLines: lines.vertical.map((line) => line / 100) })
 
 const applyCustomGridWithValidation = () => {
   const result = applyCustomGrid()
@@ -71,7 +74,7 @@ const resetAll = () => {
 }
 const handleSelectPreset = (preset: GridPreset) => { selectedPreset.value = preset }
 const handleExportFormatChange = (format: ExportFormat) => { exportFormat.value = format }
-const handleAutoDownloadToggle = (value: boolean) => { setAutoDownload(value); if (value && images.value.length) processAll(true) }
+const handleAutoDownloadToggle = (value: boolean) => { setAutoDownload(value); if (value && images.value.length) processAll(true, true) }
 
 type PreviewItem = DataSourceItem & { tileId: string; downloadName: string }
 const previewActive = ref(false)
@@ -97,7 +100,7 @@ const ensureLightbox = () => {
 const openPreview = (tileId?: string) => { if (!previewItems.value.length) return; const lightbox = ensureLightbox(); const index = tileId ? previewIndexById.value.get(tileId) ?? 0 : 0; if (!previewStatePushed.value) { history.pushState({ igsPreview: true, t: Date.now() }, '', window.location.href); previewStatePushed.value = true }; previewActive.value = true; lightbox.loadAndOpen(index) }
 const handleBackNavigation = (event: PopStateEvent) => { if (previewActive.value) { closingFromPop.value = true; lightboxRef.value?.pswp?.close(); previewStatePushed.value = false; event.preventDefault?.() } }
 
-const syncMobileFlag = () => { isMobile.value = window.innerWidth <= 640; document.body.dataset.mobile = isMobile.value ? 'true' : 'false' }
+const syncMobileFlag = () => { isMobile.value = window.innerWidth < 960; document.body.dataset.mobile = isMobile.value ? 'true' : 'false'; if (!isMobile.value) controlsExpanded.value = true }
 watch(selectedPreset, (preset) => {
   customRows.value = preset.rows
   customCols.value = preset.cols
@@ -117,20 +120,31 @@ onBeforeUnmount(() => { window.removeEventListener('dragover', handleGlobalDragO
 </script>
 
 <template>
+  <ExportProgressOverlay :progress="exportProgress" :tr="tr" :cancellable="state.processing" @cancel="cancelProcessing" @dismiss="dismissExportProgress" />
   <main class="page">
     <AppHeader :tr="tr" :icons="icons" :locale="locale" :supported-locales="supportedLocales" :app-version="appVersion" :github-url="githubUrl" @locale-change="switchLocale" />
     <HeroSection :tr="tr" :icons="icons" :grid-description="editableGridDescription" :tile-count="editableTileCount" :image-size-label="imageSizeLabel" :export-format="exportFormat" :quality-label="qualityLabel" :is-jpg-format="isJpgFormat" :status-text="statusText" :processing="state.processing" :has-tiles="totalTiles > 0" :has-image="hasImage" :is-mobile="isMobile" @choose-file="triggerFileSelect" @trigger-downloads="triggerDownloads" @reset="resetAll" />
-    <GridPresetsPanel :tr="tr" :icons="icons" :presets="gridPresets" :visible-presets="visiblePresets" :selected-preset="selectedPreset" :show-preset-toggle="showPresetToggle" :preset-expanded="presetExpanded" v-model:custom-rows="customRows" v-model:custom-cols="customCols" :processing="state.processing" :is-mobile="isMobile" :edge-erase-enabled="edgeEraseEnabled" :edge-erase-padding="edgeErasePadding" :edge-erase-unit="slicePlan.paddingUnit" :include-outer="slicePlan.trimOuterEdges" @select-preset="handleSelectPreset" @toggle-presets="togglePresetExpanded" @apply-custom-grid="applyCustomGridWithValidation" @update:edge-erase-enabled="updateEdgeEraseEnabled" @update:edge-erase-padding="updateEdgeErasePadding" @update:edge-erase-unit="updateSlicePlan({ paddingUnit: $event })" @update:include-outer="updateSlicePlan({ trimOuterEdges: $event })" />
-    <SliceEditor :image-src="images[0]?.objectUrl" :image-alt="images[0]?.baseName" :horizontal-lines="slicePlan.horizontalLines.map((line) => line * 100)" :vertical-lines="slicePlan.verticalLines.map((line) => line * 100)" :padding="slicePlan.padding" :padding-unit="slicePlan.paddingUnit" :include-outer="slicePlan.trimOuterEdges" :expanded="editorExpanded" :disabled="state.processing" @update:expanded="editorExpanded = $event" @update:horizontal-lines="updateHorizontalLines" @update:vertical-lines="updateVerticalLines" @update:padding="updateEdgeErasePadding" @update:padding-unit="updateSlicePlan({ paddingUnit: $event })" @update:include-outer="updateSlicePlan({ trimOuterEdges: $event })" />
-    <ExportSettings :tr="tr" :icons="icons" :export-format="exportFormat" :is-jpg-format="isJpgFormat" :quality-label="qualityLabel" :jpg-quality-percent="jpgQualityPercent" :processing="state.processing" :directory-supported="directoryExportSupported" :directory-ready="directoryExportReady" @update:export-format="handleExportFormatChange" @update:jpg-quality-percent="jpgQualityPercent = $event" @change-directory="changeExportDirectory" />
-    <!-- 不放在组件插槽中，保证 composable 可稳定取得 ref 并触发系统文件选择器。 -->
-    <input ref="fileInput" class="file-input" type="file" accept="image/*" multiple @change="onFileChange" />
-    <UploadPanel :tr="tr" :icons="icons" :drag-over="state.dragOver" :has-image="hasImage" :first-base-name="firstBaseName" :first-image-size="firstImageSize" :queue-summary="queueSummary" :error-text="errorText" :is-mobile="isMobile" @drop="onDrop" @dragover="onDragOver" @dragleave="onDragLeave" @file-change="onFileChange" @pick="triggerFileSelect" />
-    <ResultsPanel :tr="tr" :icons="icons" :images="images" :tiles-heading="tilesHeading" :results-summary="resultsSummary" :auto-download="autoDownload" :processing="state.processing" :collapsed="resultsCollapsed" :pending-traditional-downloads="pendingTraditionalDownloads ? { written: totalTiles - pendingTraditionalDownloads.length, pending: pendingTraditionalDownloads.length } : null" @toggle-collapsed="resultsCollapsed = !resultsCollapsed" @toggle-auto-download="handleAutoDownloadToggle" @trigger-downloads="triggerDownloads" @retry-pending-downloads="retryPendingTraditionalDownloads" @download-image="downloadSingleImage" @preview-tile="openPreview" @preview-all="() => openPreview()" />
+    <div class="workspace">
+      <aside class="control-rail" :class="{ collapsed: isMobile && !controlsExpanded }">
+        <button v-if="isMobile" class="mobile-controls-toggle" type="button" :aria-expanded="controlsExpanded" @click="controlsExpanded = !controlsExpanded">{{ controlsExpanded ? tr.buttons.hideControls : tr.buttons.showControls }}</button>
+        <div v-show="!isMobile || controlsExpanded" class="control-stack">
+          <GridPresetsPanel :tr="tr" :icons="icons" :presets="gridPresets" :visible-presets="visiblePresets" :selected-preset="selectedPreset" :show-preset-toggle="showPresetToggle" :preset-expanded="presetExpanded" v-model:custom-rows="customRows" v-model:custom-cols="customCols" :processing="state.processing" :is-mobile="isMobile" :edge-erase-enabled="edgeEraseEnabled" :edge-erase-padding="edgeErasePadding" :edge-erase-unit="slicePlan.paddingUnit" :include-outer="slicePlan.trimOuterEdges" @select-preset="handleSelectPreset" @toggle-presets="togglePresetExpanded" @apply-custom-grid="applyCustomGridWithValidation" @update:edge-erase-enabled="updateEdgeEraseEnabled" @update:edge-erase-padding="updateEdgeErasePadding" @update:edge-erase-unit="updateSlicePlan({ paddingUnit: $event })" @update:include-outer="updateSlicePlan({ trimOuterEdges: $event })" />
+          <SliceEditor :image-src="images[0]?.objectUrl" :image-alt="images[0]?.baseName" :horizontal-lines="slicePlan.horizontalLines.map((line) => line * 100)" :vertical-lines="slicePlan.verticalLines.map((line) => line * 100)" :expanded="editorExpanded" :disabled="state.processing" @update:expanded="editorExpanded = $event" @update:horizontal-lines="updateHorizontalLines" @update:vertical-lines="updateVerticalLines" @confirm="confirmEditorLines" />
+          <ExportSettings :tr="tr" :icons="icons" :export-format="exportFormat" :is-jpg-format="isJpgFormat" :quality-label="qualityLabel" :jpg-quality-percent="jpgQualityPercent" :processing="state.processing" :directory-supported="directoryExportSupported" :directory-ready="directoryExportReady" @update:export-format="handleExportFormatChange" @update:jpg-quality-percent="jpgQualityPercent = $event" @change-directory="changeExportDirectory" />
+        </div>
+      </aside>
+      <section class="content-rail">
+        <!-- 不放在组件插槽中，保证 composable 可稳定取得 ref 并触发系统文件选择器。 -->
+        <input ref="fileInput" class="file-input" type="file" accept="image/*" multiple @change="onFileChange" />
+        <UploadPanel :tr="tr" :icons="icons" :drag-over="state.dragOver" :has-image="hasImage" :first-base-name="firstBaseName" :first-image-size="firstImageSize" :queue-summary="queueSummary" :error-text="errorText" :is-mobile="isMobile" @drop="onDrop" @dragover="onDragOver" @dragleave="onDragLeave" @file-change="onFileChange" @pick="triggerFileSelect" />
+        <ResultsPanel :tr="tr" :icons="icons" :images="images" :tiles-heading="tilesHeading" :results-summary="resultsSummary" :auto-download="autoDownload" :processing="state.processing" :collapsed="resultsCollapsed" :pending-traditional-downloads="pendingTraditionalDownloads ? { written: totalTiles - pendingTraditionalDownloads.length, pending: pendingTraditionalDownloads.length } : null" @toggle-collapsed="resultsCollapsed = !resultsCollapsed" @toggle-auto-download="handleAutoDownloadToggle" @trigger-downloads="triggerDownloads" @retry-pending-downloads="retryPendingTraditionalDownloads" @download-image="downloadSingleImage" @preview-tile="openPreview" @preview-all="() => openPreview()" />
+      </section>
+    </div>
   </main>
 </template>
 
 <style>
 :root { color-scheme: dark; }.page { display: flex; max-width: 1180px; min-height: 100dvh; margin: 0 auto; padding: 14px; flex-direction: column; gap: 10px; }.panel { border: 1px solid rgb(203 239 231 / .14); border-radius: 12px; padding: 11px; background: #152129; }.hero { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(280px, .75fr); gap: 10px; padding: 4px 0; }.hero h1 { margin: 2px 0; font-size: 27px; }.hero-card { align-self: stretch; padding: 10px; border: 1px solid rgb(203 239 231 / .14); border-radius: 12px; background: #152129; }.eyebrow { margin: 0; color: #8fd7ca; font-size: 11px; font-weight: 700; }.subhead,.muted,.hint { color: #a9c1be; }.actions,.results-actions,.tiles-actions,.custom-fields,.format-radios { display: flex; flex-wrap: wrap; gap: 6px; }.stat-row { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; border-bottom: 1px solid rgb(203 239 231 / .09); }.stat-row:last-child { border: 0; }.label { color: #a9c1be; }.value { text-align: right; }.preset-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(88px,1fr)); gap: 6px; }.preset { justify-content: flex-start; min-height: 34px; }.preset.active,.button-row button.active { border-color: #47d7ba; background: rgb(71 215 186 / .14); color: #baffef; }.custom-grid { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; }.export-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }.export-field { display: grid; gap: 6px; }.dropzone { padding: 20px 14px; border: 2px dashed rgb(143 215 202 / .4); border-radius: 12px; text-align: center; cursor: pointer; }.dropzone.over { border-color: #47d7ba; background: rgb(71 215 186 / .1); }.file-input { display: none; }.results { padding: 0; overflow: hidden; }.results-header { display: flex; justify-content: space-between; gap: 10px; padding: 11px; }.image-list { display: grid; gap: 8px; padding: 10px; }.image-block { display: grid; grid-template-columns: minmax(220px,.9fr) 1.1fr; gap: 10px; padding: 10px; border: 1px solid rgb(203 239 231 / .1); border-radius: 10px; }.preview-box { display: grid; min-height: 160px; place-items: center; border-radius: 8px; background: #0f1a20; }.preview-box img { max-width: 100%; max-height: 220px; object-fit: contain; }.tiles-header { display: flex; justify-content: space-between; gap: 8px; }.tiles-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(104px,1fr)); gap: 6px; margin-top: 8px; }.tile { padding: 6px; border: 1px solid rgb(203 239 231 / .1); border-radius: 8px; cursor: pointer; }.tile img { width: 100%; aspect-ratio: 1; object-fit: contain; }.tile-footer { display: flex; justify-content: space-between; gap: 5px; }.tile-name { overflow: hidden; margin: 3px 0 0; color: #a9c1be; font-size: 11px; text-overflow: ellipsis; }.link-btn,.ghost { border-color: rgb(203 239 231 / .18); background: transparent; color: #dff4ee; }.danger { color: #ffb7ac; }.inline-icon,.title-icon,.stat-icon,.btn-icon { width: 15px; height: 15px; }.error { color: #ffb7ac; }@media (max-width: 700px) { .page { padding: 8px; gap: 8px; }.hero,.export-controls,.image-block { grid-template-columns: 1fr; }.hero-card { display: none; }.results-header,.tiles-header { flex-direction: column; }.results-actions { align-items: flex-start; }.custom-grid { align-items: flex-start; flex-direction: column; }.tiles-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 .hero.compact { grid-template-columns: 1fr auto; align-items:center; padding:0; }.hero.compact .eyebrow,.hero.compact h1,.hero.compact .subhead,.hero.compact .hint { display:none; }.hero.compact .hero-text { display:flex; align-items:center; }.hero.compact .hero-card { display:flex; gap:10px; padding:0; border:0; background:transparent; }.hero.compact .stat-row { padding:0; border:0; gap:4px; }.hero.compact .stat-row:nth-child(5) { display:none; }
+.page{max-width:1400px;padding:10px;gap:8px}.workspace{display:grid;grid-template-columns:minmax(410px,440px) minmax(0,1fr);align-items:start;gap:8px}.control-rail{position:sticky;top:8px;display:grid;gap:8px;min-width:0}.control-stack,.content-rail{display:grid;gap:8px;min-width:0}.control-stack>*,.content-rail>.upload-panel,.content-rail>.results{min-width:0}.mobile-controls-toggle{display:none;min-height:34px;border:1px solid rgb(203 239 231 / .18);border-radius:10px;background:#152129;color:#dff4ee;font:inherit;font-size:12px;font-weight:700;text-align:left;cursor:pointer}.mobile-controls-toggle:focus-visible{outline:2px solid #47d7ba;outline-offset:2px}@media(max-width:959px){.page{padding:8px;gap:8px}.workspace{grid-template-columns:minmax(0,1fr);gap:8px}.content-rail{order:1}.control-rail{position:static;order:2}.mobile-controls-toggle{display:block;padding:8px 10px}.control-rail.collapsed{gap:0}.hero{grid-template-columns:minmax(0,1fr)}.hero-card{display:none}.results-header,.tiles-header{flex-direction:column}.results-actions{align-items:flex-start}}@media(min-width:960px){.content-rail>.upload-panel:not(.has-image){min-height:calc(100dvh - 270px)}}
 </style>

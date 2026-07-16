@@ -25,7 +25,7 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <section class="panel upload-panel">
+  <section class="panel upload-panel" :class="{ 'has-image': props.hasImage }">
     <div
       class="dropzone"
       :class="{ over: props.dragOver }"
@@ -35,10 +35,12 @@ const emit = defineEmits<{
       @drop.prevent="emit('drop', $event)"
     >
       <slot name="file-input" />
-      <div class="drop-content">
+      <div class="drop-content" :class="{ 'drop-content--compact': props.hasImage }">
         <Icon :icon="props.icons.upload" class="drop-icon" aria-hidden="true" />
-        <p class="drop-title">{{ props.tr.upload.title }}</p>
-        <p class="muted">{{ props.tr.upload.subtitle }}</p>
+        <div class="drop-copy">
+          <p class="drop-title">{{ props.tr.upload.title }}</p>
+          <p v-if="!props.hasImage" class="muted">{{ props.tr.upload.subtitle }}</p>
+        </div>
         <div v-if="props.hasImage" class="current-file">
           <span class="chip">{{ props.queueSummary }}</span>
           <span class="chip">{{ props.tr.upload.currentPrefix }}{{ props.firstBaseName }}</span>
@@ -52,3 +54,24 @@ const emit = defineEmits<{
     <p v-if="props.errorText" class="error">{{ props.errorText }}</p>
   </section>
 </template>
+
+<style scoped>
+.drop-content { display: grid; justify-items: center; gap: 6px; }
+.drop-icon { width: 22px; height: 22px; color: #baffef; }
+.drop-title,.drop-copy .muted { margin: 0; }
+.drop-title { font-weight: 700; }
+.current-file { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; }
+.chip { display: inline-flex; max-width: min(100%, 360px); align-items: center; min-height: 25px; overflow: hidden; padding: 3px 7px; border: 1px solid rgb(143 215 202 / .22); border-radius: 999px; background: rgb(143 215 202 / .08); color: #cbe2dc; font-size: 12px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+
+.has-image .dropzone { padding: 8px 10px; border-style: dashed; }
+.drop-content--compact { grid-template-columns: auto minmax(0, 1fr) minmax(0, auto); align-items: center; justify-items: stretch; gap: 9px; text-align: left; }
+.drop-content--compact .drop-icon { width: 18px; height: 18px; align-self: center; }
+.drop-content--compact .drop-copy { min-width: 0; }
+.drop-content--compact .drop-title { font-size: 13px; }
+.drop-content--compact .current-file { justify-content: flex-end; min-width: 0; }
+
+@media (max-width: 620px) {
+  .drop-content--compact { grid-template-columns: auto minmax(0, 1fr); }
+  .drop-content--compact .current-file { grid-column: 1 / -1; justify-content: flex-start; }
+}
+</style>

@@ -26,8 +26,8 @@ export interface DirectoryExportOptions {
 }
 
 export type DirectoryExportResult<T extends DirectoryExportFile = DirectoryExportFile> =
-  | { kind: 'complete'; written: T[]; pending: T[] }
-  | { kind: 'partial'; written: T[]; pending: T[] }
+  | { kind: 'complete'; written: T[]; pending: T[]; renamed: number }
+  | { kind: 'partial'; written: T[]; pending: T[]; renamed: number }
 
 const DATABASE_NAME = 'image-grid-spliter'
 const STORE_NAME = 'directory-export'
@@ -160,9 +160,10 @@ export function useDirectoryExport(options: DirectoryExportOptions = {}) {
     throw new Error('Too many files with the same name')
   }
 
-  const writeFiles = async <T extends DirectoryExportFile>(files: T[]): Promise<DirectoryExportResult<T>> => {
-    if (!directory) return { kind: 'partial', written: [], pending: files }
+  const writeFiles = async <T extends DirectoryExportFile>(files: T[], onProgress?: (current: number, total: number) => void): Promise<DirectoryExportResult<T>> => {
+    if (!directory) return { kind: 'partial', written: [], pending: files, renamed: 0 }
     const written: DirectoryExportFile[] = []
+    let renamed = 0
     for (let index = 0; index < files.length; index += 1) {
       const file = files[index]
       try {
@@ -172,11 +173,13 @@ export function useDirectoryExport(options: DirectoryExportOptions = {}) {
         await writer.write(file.blob)
         await writer.close()
         written.push(file)
+        if (name !== file.name) renamed += 1
+        onProgress?.(written.length, files.length)
       } catch {
-        return { kind: 'partial', written, pending: files.slice(index) }
+        return { kind: 'partial', written, pending: files.slice(index), renamed }
       }
     }
-    return { kind: 'complete', written, pending: [] }
+    return { kind: 'complete', written, pending: [], renamed }
   }
 
   return {

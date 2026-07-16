@@ -22,12 +22,15 @@ type Translations = Record<
       downloadAgain: string
       processing: string
       autoDownload: string
+      showControls: string
+      hideControls: string
     }
     stats: { currentGrid: string; tileCount: string; imageSize: string; exportFormat: string; downloadStatus: string; notLoaded: string }
     grid: { eyebrow: string; title: string; subtitle: string; columns: string; rows: string; apply: string }
     export: { eyebrow: string; title: string; subtitle: string; formatLabel: string; qualityLabel: string; qualityAria: string; autoDownloadLabel: string; autoDownloadHint: string; directoryReady: string; directoryAvailable: string; directoryFallback: string; changeDirectory: string }
     upload: { title: string; subtitle: string; tip: string; currentPrefix: string; sizePrefix: string; queuePrefix: (count: number) => string }
     results: { original: string; emptyUpload: string; result: string; waiting: string; previewPlaceholder: string; queueSummary: (count: number) => string; partialExport: (written: number, pending: number) => string; retryTraditionalDownload: string }
+    progress: { generating: (current: number, total: number) => string; saving: (current: number, total: number) => string; downloading: (current: number, total: number) => string; directoryReport: (completed: number, total: number, renamed: number, pending: number) => string; traditionalReport: (completed: number, total: number) => string; generationReport: (completed: number, total: number, pending: number) => string; close: string; cancel: string }
     status: {
       waiting: string
       batchDownloading: string
@@ -82,6 +85,8 @@ const translations: Translations = {
       downloadAgain: '再次下载',
       processing: '处理中...',
       autoDownload: '自动下载',
+      showControls: '展开控制',
+      hideControls: '收起控制',
     },
     stats: {
       currentGrid: '当前网格',
@@ -130,6 +135,16 @@ const translations: Translations = {
       queueSummary: (count: number) => `队列中有 ${count} 张图片`,
       partialExport: (written: number, pending: number) => `已有 ${written} 个文件写入目录，${pending} 个文件未完成。`,
       retryTraditionalDownload: '以传统下载重试未完成项',
+    },
+    progress: {
+      generating: (current: number, total: number) => `正在生成 ${current} / ${total}`,
+      saving: (current: number, total: number) => `正在保存 ${current} / ${total}`,
+      downloading: (current: number, total: number) => `正在触发下载 ${current} / ${total}`,
+      directoryReport: (completed: number, total: number, renamed: number, pending: number) => pending ? `已保存 ${completed} / ${total}，重命名 ${renamed}，未完成 ${pending}` : `已保存 ${completed} / ${total}，重命名 ${renamed}，失败 0`,
+      traditionalReport: (completed: number, total: number) => `已触发 ${completed} / ${total} 个浏览器下载`,
+      generationReport: (completed: number, total: number, pending: number) => pending ? `生成中断：已完成 ${completed} / ${total}，未完成 ${pending}` : `裁切完成：已生成 ${completed} / ${total}`,
+      close: '关闭进度提示',
+      cancel: '取消裁切',
     },
     status: {
       waiting: '等待上传图片并选择网格',
@@ -189,6 +204,8 @@ const translations: Translations = {
       downloadAgain: 'Download again',
       processing: 'Processing...',
       autoDownload: 'Auto download',
+      showControls: 'Show controls',
+      hideControls: 'Hide controls',
     },
     stats: {
       currentGrid: 'Current grid',
@@ -237,6 +254,16 @@ const translations: Translations = {
       queueSummary: (count: number) => `${count} image(s) in queue`,
       partialExport: (written: number, pending: number) => `${written} file(s) were written; ${pending} file(s) remain.`,
       retryTraditionalDownload: 'Retry remaining with standard downloads',
+    },
+    progress: {
+      generating: (current: number, total: number) => `Generating ${current} / ${total}`,
+      saving: (current: number, total: number) => `Saving ${current} / ${total}`,
+      downloading: (current: number, total: number) => `Triggering downloads ${current} / ${total}`,
+      directoryReport: (completed: number, total: number, renamed: number, pending: number) => pending ? `Saved ${completed} / ${total}, renamed ${renamed}, pending ${pending}` : `Saved ${completed} / ${total}, renamed ${renamed}, failed 0`,
+      traditionalReport: (completed: number, total: number) => `Triggered ${completed} / ${total} browser downloads`,
+      generationReport: (completed: number, total: number, pending: number) => pending ? `Generation stopped: ${completed} / ${total}, pending ${pending}` : `Slicing complete: generated ${completed} / ${total}`,
+      close: 'Close export progress',
+      cancel: 'Cancel slicing',
     },
     status: {
       waiting: 'Waiting for image upload and grid selection',

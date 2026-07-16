@@ -63,10 +63,13 @@ describe('useDirectoryExport', () => {
     const exporter = useDirectoryExport({ showDirectoryPicker: picker, storage })
 
     await expect(exporter.prepareManualExport()).resolves.toBe(true)
-    const result = await exporter.writeFiles([{ name: 'photo.png', blob: new Blob(['tile']) }])
+    const updates: [number, number][] = []
+    const result = await exporter.writeFiles([{ name: 'photo.png', blob: new Blob(['tile']) }], (current, total) => updates.push([current, total]))
 
     expect(result.kind).toBe('complete')
     expect(writes).toEqual(['photo-1.png'])
+    expect(result.renamed).toBe(1)
+    expect(updates).toEqual([[1, 1]])
     expect(storage.saved).toBe(directory)
     expect(picker).toHaveBeenCalledOnce()
   })

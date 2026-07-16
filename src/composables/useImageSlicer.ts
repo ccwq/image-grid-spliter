@@ -36,6 +36,23 @@ export type StatusKey =
 
 export type ErrorKey = 'none' | 'invalidFile' | 'processingFailed' | 'loadFailed' | 'customGridInvalid'
 
+export type ExportProgressPhase = 'hidden' | 'generating' | 'saving' | 'downloading' | 'report'
+
+export interface ExportReport {
+  mode: 'directory' | 'traditional' | 'generation'
+  completed: number
+  total: number
+  renamed: number
+  pending: number
+}
+
+export interface ExportProgress {
+  phase: ExportProgressPhase
+  current: number
+  total: number
+  report: ExportReport | null
+}
+
 interface ImageSlicerDeps {
   selectedPreset: { value: GridPreset }
   slicePlan: { value: SlicePlan }
@@ -53,6 +70,8 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
   const autoDownload = ref(false)
   const directoryExport = useDirectoryExport()
   const pendingTraditionalDownloads = ref<TileResult[] | null>(null)
+  const exportProgress = reactive<ExportProgress>({ phase: 'hidden', current: 0, total: 0, report: null })
+  let progressDismissTimer: ReturnType<typeof setTimeout> | null = null
   // 记录正在入队的文件，防止并发/重复触发的拖拽导致重复添加
   const pendingIds = new Set<string>()
   const totalTiles = computed(() => images.value.reduce((sum, item) => sum + item.tiles.length, 0))
@@ -61,6 +80,7 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
   const state = reactive({
     dragOver: false,
     processing: false,
+    cancelRequested: false,
     errorKey: 'none' as ErrorKey,
     errorDetail: '',
   })
@@ -105,6 +125,38 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
 
   const clearError = () => setError('none')
 
+  const dismissExportProgress = () => {
+    if (progressDismissTimer) clearTimeout(progressDismissTimer)
+    progressDismissTimer = null
+    exportProgress.phase = 'hidden'
+    exportProgress.current = 0
+    exportProgress.total = 0
+    exportProgress.report = null
+  }
+
+  const beginExportProgress = (phase: Exclude<ExportProgressPhase, 'hidden' | 'report'>, total: number) => {
+    if (progressDismissTimer) clearTimeout(progressDismissTimer)
+    progressDismissTimer = null
+    exportProgress.phase = phase
+    exportProgress.current = 0
+    exportProgress.total = total
+    exportProgress.report = null
+  }
+
+  const updateExportProgress = (current: number, total: number) => {
+    exportProgress.current = current
+    exportProgress.total = total
+  }
+
+  const completeExportProgress = (report: ExportReport) => {
+    if (progressDismissTimer) clearTimeout(progressDismissTimer)
+    exportProgress.phase = 'report'
+    exportProgress.current = report.completed
+    exportProgress.total = report.total
+    exportProgress.report = report
+    if (!report.pending) progressDismissTimer = setTimeout(dismissExportProgress, 5000)
+  }
+
   const persistAutoDownload = () => {
     try {
       localStorage.setItem(AUTO_DOWNLOAD_KEY, autoDownload.value ? '1' : '0')
@@ -141,6 +193,7 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
     clearError()
     state.processing = false
     setStatus('waiting')
+    dismissExportProgress()
   }
 
   const resetApp = () => {
@@ -162,7 +215,7 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
       )
     })
 
-  const splitImage = async (img: HTMLImageElement, baseName: string) => {
+  const splitImage = async (img: HTMLImageElement, baseName: string, onTileGenerated?: () => void, shouldCancel?: () => boolean) => {
     const rects = computeTileRectsFromLines(img.naturalWidth, img.naturalHeight, slicePlan.value)
       .filter((rect) => rect.width > 0 && rect.height > 0)
     const result: TileResult[] = []
@@ -170,6 +223,7 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
     const fileExt = exportFormat.value === 'png' ? 'png' : 'jpg'
 
     for (const rect of rects) {
+      if (shouldCancel?.()) break
       const canvas = document.createElement('canvas')
       canvas.width = rect.width
       canvas.height = rect.height
@@ -207,16 +261,18 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
         width: rect.width,
         height: rect.height,
       })
+      onTileGenerated?.()
     }
 
     return result
   }
 
-  const downloadTiles = async (items: ImageItem[]) => {
+  const downloadTiles = async (items: ImageItem[], trackProgress = false) => {
     const allTiles = items.flatMap((item) => item.tiles)
     if (!allTiles.length) return
     setStatus('batchDownloading')
-    for (const tile of allTiles) {
+    if (trackProgress) beginExportProgress('downloading', allTiles.length)
+    for (const [index, tile] of allTiles.entries()) {
       const link = document.createElement('a')
       link.href = tile.previewUrl
       link.download = tile.name
@@ -225,51 +281,75 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
       document.body.appendChild(link)
       link.click()
       link.remove()
+      if (trackProgress) updateExportProgress(index + 1, allTiles.length)
       await new Promise((r) => setTimeout(r, 80))
     }
     setStatus('triggered', { count: allTiles.length })
+    if (trackProgress) completeExportProgress({ mode: 'traditional', completed: allTiles.length, total: allTiles.length, renamed: 0, pending: 0 })
   }
 
-  const writeTilesToDirectory = async (items: ImageItem[]) => {
+  const writeTilesToDirectory = async (items: ImageItem[], trackProgress = false) => {
     const files = items.flatMap((item) => item.tiles).map((tile) => ({ name: tile.name, blob: tile.blob, tile }))
     if (!files.length) return
     setStatus('batchDownloading')
-    const result = await directoryExport.writeFiles(files)
+    if (trackProgress) beginExportProgress('saving', files.length)
+    const result = await directoryExport.writeFiles(files, (current, total) => {
+      if (trackProgress) updateExportProgress(current, total)
+    })
     if (result.kind === 'partial') {
       pendingTraditionalDownloads.value = result.pending.map((file) => file.tile)
       setStatus('triggered', { count: result.written.length })
+      if (trackProgress) completeExportProgress({ mode: 'directory', completed: result.written.length, total: files.length, renamed: result.renamed, pending: result.pending.length })
       return
     }
     pendingTraditionalDownloads.value = null
     setStatus('triggered', { count: result.written.length })
+    if (trackProgress) completeExportProgress({ mode: 'directory', completed: result.written.length, total: files.length, renamed: result.renamed, pending: 0 })
   }
 
-  const processAll = async (autoDownloadNow: boolean) => {
+  const cancelProcessing = () => { if (state.processing) state.cancelRequested = true }
+
+  const processAll = async (autoDownloadNow: boolean, trackProgress = true) => {
     if (!images.value.length || state.processing) {
       if (!images.value.length) setStatus('waiting')
       return
     }
     clearError()
     state.processing = true
+    state.cancelRequested = false
     setStatus('processing')
-    images.value.forEach((item) => item.tiles.forEach((tile) => URL.revokeObjectURL(tile.previewUrl)))
+    images.value.forEach((item) => { item.tiles.forEach((tile) => URL.revokeObjectURL(tile.previewUrl)); item.tiles = [] })
 
     try {
+      const expectedTotal = images.value.reduce((sum, item) => sum + computeTileRectsFromLines(item.image.naturalWidth, item.image.naturalHeight, slicePlan.value).filter((rect) => rect.width > 0 && rect.height > 0).length, 0)
+      let generatedCount = 0
+      beginExportProgress('generating', expectedTotal)
       let totalCount = 0
       for (const item of images.value) {
-        item.tiles = await splitImage(item.image, item.baseName)
+        item.tiles = await splitImage(item.image, item.baseName, () => {
+          generatedCount += 1
+          updateExportProgress(generatedCount, expectedTotal)
+        }, () => state.cancelRequested)
         totalCount += item.tiles.length
+        if (state.cancelRequested) break
+      }
+      if (state.cancelRequested) {
+        setStatus('manual', { count: totalCount, grid: gridDescription.value })
+        completeExportProgress({ mode: 'generation', completed: generatedCount, total: expectedTotal, renamed: 0, pending: Math.max(0, expectedTotal - generatedCount) })
+        return
       }
       const payload = { count: totalCount, grid: gridDescription.value }
       setStatus(autoDownloadNow ? 'finished' : 'manual', payload)
       if (autoDownloadNow) {
-        if (await directoryExport.canAutoExport()) await writeTilesToDirectory(images.value)
-        else await downloadTiles(images.value)
-      }
+        if (await directoryExport.canAutoExport()) await writeTilesToDirectory(images.value, trackProgress)
+        else await downloadTiles(images.value, trackProgress)
+      } else completeExportProgress({ mode: 'generation', completed: totalCount, total: expectedTotal, renamed: 0, pending: 0 })
     } catch (err) {
       setError('processingFailed', err instanceof Error ? err.message : '')
+      if (trackProgress) completeExportProgress({ mode: 'generation', completed: exportProgress.current, total: exportProgress.total, renamed: 0, pending: Math.max(0, exportProgress.total - exportProgress.current) })
     } finally {
       state.processing = false
+      state.cancelRequested = false
     }
   }
 
@@ -325,7 +405,7 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
       }
     }
 
-    await processAll(autoDownload.value)
+    await processAll(autoDownload.value, autoDownload.value)
   }
 
   const triggerDownloads = async () => {
@@ -333,16 +413,16 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
     pendingTraditionalDownloads.value = null
     // 目录选择必须在此用户点击路径开始时进行，不能等待异步裁切完成。
     const writeToDirectory = await directoryExport.prepareManualExport()
-    await processAll(false)
-    if (writeToDirectory) await writeTilesToDirectory(images.value)
-    else await downloadTiles(images.value)
+    await processAll(false, true)
+    if (writeToDirectory) await writeTilesToDirectory(images.value, true)
+    else await downloadTiles(images.value, true)
   }
 
   const retryPendingTraditionalDownloads = async () => {
     if (!pendingTraditionalDownloads.value?.length) return
     const pending = pendingTraditionalDownloads.value
     pendingTraditionalDownloads.value = null
-    await downloadTiles([{ tiles: pending } as ImageItem])
+    await downloadTiles([{ tiles: pending } as ImageItem], true)
   }
 
   const changeExportDirectory = async () => {
@@ -357,11 +437,18 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
     setStatus('processing')
     target.tiles.forEach((tile) => URL.revokeObjectURL(tile.previewUrl))
     try {
-      target.tiles = await splitImage(target.image, target.baseName)
+      const expectedTotal = computeTileRectsFromLines(target.image.naturalWidth, target.image.naturalHeight, slicePlan.value).filter((rect) => rect.width > 0 && rect.height > 0).length
+      let generatedCount = 0
+      beginExportProgress('generating', expectedTotal)
+      target.tiles = await splitImage(target.image, target.baseName, () => {
+        generatedCount += 1
+        updateExportProgress(generatedCount, expectedTotal)
+      })
       setStatus('manual', { count: target.tiles.length, grid: gridDescription.value })
-      await downloadTiles([target])
+      await downloadTiles([target], true)
     } catch (err) {
       setError('processingFailed', err instanceof Error ? err.message : '')
+      completeExportProgress({ mode: 'generation', completed: exportProgress.current, total: exportProgress.total, renamed: 0, pending: Math.max(0, exportProgress.total - exportProgress.current) })
     } finally {
       state.processing = false
     }
@@ -426,6 +513,9 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
     triggerDownloads,
     downloadSingleImage,
     processAll,
+    cancelProcessing,
+    exportProgress,
+    dismissExportProgress,
     directoryExportSupported: directoryExport.isSupported,
     directoryExportReady: directoryExport.hasWritableDirectory,
     pendingTraditionalDownloads,
