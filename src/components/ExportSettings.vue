@@ -10,12 +10,15 @@ interface Props {
   qualityLabel: string
   jpgQualityPercent: number
   processing: boolean
+  directorySupported: boolean
+  directoryReady: boolean
 }
 
 const props = defineProps<Props>()
 const emit = defineEmits<{
   (e: 'update:exportFormat', value: string): void
   (e: 'update:jpgQualityPercent', value: number): void
+  (e: 'change-directory'): void
 }>()
 </script>
 
@@ -65,10 +68,17 @@ const emit = defineEmits<{
           <span class="quality-text" :class="{ disabled: !props.isJpgFormat }">{{ props.qualityLabel }}</span>
         </div>
       </label>
+      <div class="directory-export" :class="{ ready: props.directoryReady }">
+        <template v-if="props.directorySupported">
+          <span class="directory-hint">{{ props.directoryReady ? props.tr.export.directoryReady : props.tr.export.directoryAvailable }}</span>
+          <button class="ghost directory-button" type="button" :disabled="props.processing" @click="emit('change-directory')">{{ props.tr.export.changeDirectory }}</button>
+        </template>
+        <span v-else class="directory-hint">{{ props.tr.export.directoryFallback }}</span>
+      </div>
     </div>
   </section>
 </template>
 
 <style scoped>
-.export-controls{display:flex;align-items:center;min-width:0;gap:8px;white-space:nowrap}.export-summary{flex:0 0 auto;color:#dff4ee;font-size:12px;font-weight:700}.export-field{display:flex;align-items:center;min-width:0;gap:5px}.export-format-field{flex:0 0 auto}.format-radios{display:flex;flex-wrap:nowrap;gap:5px}.radio-pill{display:flex;align-items:center;gap:2px;font-size:12px}.radio-pill .btn-icon{width:13px;height:13px}.export-quality-field{flex:1 1 0}.export-quality-field .field-label{font-size:12px}.quality-control{display:flex;align-items:center;flex:1 1 0;min-width:0;gap:4px}.quality-control input{flex:1 1 0;min-width:46px}.quality-text{font-size:12px;font-weight:700}@media(max-width:640px){.export-controls{gap:4px}.export-summary,.radio-pill,.export-quality-field .field-label,.quality-text{font-size:11px}.radio-pill .btn-icon{display:none}.format-radios{gap:3px}.export-quality-field{gap:3px}.quality-control{gap:3px}}
+.export-controls{display:flex;align-items:center;min-width:0;gap:8px;white-space:nowrap}.export-summary{flex:0 0 auto;color:#dff4ee;font-size:12px;font-weight:700}.export-field{display:flex;align-items:center;min-width:0;gap:5px}.export-format-field{flex:0 0 auto}.format-radios{display:flex;flex-wrap:nowrap;gap:5px}.radio-pill{display:flex;align-items:center;gap:2px;font-size:12px}.radio-pill .btn-icon{width:13px;height:13px}.export-quality-field{flex:1 1 0}.export-quality-field .field-label{font-size:12px}.quality-control{display:flex;align-items:center;flex:1 1 0;min-width:0;gap:4px}.quality-control input{flex:1 1 0;min-width:46px}.quality-text{font-size:12px;font-weight:700}.directory-export{display:flex;align-items:center;gap:5px;min-width:0}.directory-hint{color:#a9c1be;font-size:11px;white-space:normal}.directory-export.ready .directory-hint{color:#8fd7ca}.directory-button{font-size:11px;white-space:nowrap}@media(max-width:640px){.export-controls{gap:4px;flex-wrap:wrap}.export-summary,.radio-pill,.export-quality-field .field-label,.quality-text{font-size:11px}.radio-pill .btn-icon{display:none}.format-radios{gap:3px}.export-quality-field{gap:3px}.quality-control{gap:3px}.directory-export{width:100%}}
 </style>

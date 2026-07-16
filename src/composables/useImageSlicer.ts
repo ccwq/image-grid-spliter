@@ -2,6 +2,7 @@ import imageCompression from 'browser-image-compression'
 import { computed, reactive, ref } from 'vue'
 import { computeTileRectsFromLines, type GridPreset, type SlicePlan } from '../utils/grid'
 import type { LocaleMessages, ExportFormat } from './useLocale'
+import { useDirectoryExport } from './useDirectoryExport'
 import {fileSha256} from "../utils/fileUtils.ts";
 
 export interface TileResult {
@@ -50,6 +51,8 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
   const fileInput = ref<HTMLInputElement | null>(null)
   const images = ref<ImageItem[]>([])
   const autoDownload = ref(false)
+  const directoryExport = useDirectoryExport()
+  const pendingTraditionalDownloads = ref<TileResult[] | null>(null)
   // 记录正在入队的文件，防止并发/重复触发的拖拽导致重复添加
   const pendingIds = new Set<string>()
   const totalTiles = computed(() => images.value.reduce((sum, item) => sum + item.tiles.length, 0))
@@ -145,17 +148,6 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
     selectedPreset.value = selectedPreset.value
   }
 
-  const requestDownloadPermission = async () => {
-    const permissions = (navigator as Partial<Navigator> & { permissions?: { query?: (init: unknown) => Promise<unknown> } }).permissions
-    if (permissions?.query) {
-      try {
-        await permissions.query({ name: 'downloads' } as unknown)
-      } catch {
-        // ignore
-      }
-    }
-  }
-
   const triggerFileSelect = () => fileInput.value?.click()
 
   const canvasToBlob = (canvas: HTMLCanvasElement, type: string, quality?: number) =>
@@ -238,6 +230,20 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
     setStatus('triggered', { count: allTiles.length })
   }
 
+  const writeTilesToDirectory = async (items: ImageItem[]) => {
+    const files = items.flatMap((item) => item.tiles).map((tile) => ({ name: tile.name, blob: tile.blob, tile }))
+    if (!files.length) return
+    setStatus('batchDownloading')
+    const result = await directoryExport.writeFiles(files)
+    if (result.kind === 'partial') {
+      pendingTraditionalDownloads.value = result.pending.map((file) => file.tile)
+      setStatus('triggered', { count: result.written.length })
+      return
+    }
+    pendingTraditionalDownloads.value = null
+    setStatus('triggered', { count: result.written.length })
+  }
+
   const processAll = async (autoDownloadNow: boolean) => {
     if (!images.value.length || state.processing) {
       if (!images.value.length) setStatus('waiting')
@@ -257,7 +263,8 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
       const payload = { count: totalCount, grid: gridDescription.value }
       setStatus(autoDownloadNow ? 'finished' : 'manual', payload)
       if (autoDownloadNow) {
-        await downloadTiles(images.value)
+        if (await directoryExport.canAutoExport()) await writeTilesToDirectory(images.value)
+        else await downloadTiles(images.value)
       }
     } catch (err) {
       setError('processingFailed', err instanceof Error ? err.message : '')
@@ -323,8 +330,23 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
 
   const triggerDownloads = async () => {
     if (!images.value.length) return
+    pendingTraditionalDownloads.value = null
+    // 目录选择必须在此用户点击路径开始时进行，不能等待异步裁切完成。
+    const writeToDirectory = await directoryExport.prepareManualExport()
     await processAll(false)
-    await downloadTiles(images.value)
+    if (writeToDirectory) await writeTilesToDirectory(images.value)
+    else await downloadTiles(images.value)
+  }
+
+  const retryPendingTraditionalDownloads = async () => {
+    if (!pendingTraditionalDownloads.value?.length) return
+    const pending = pendingTraditionalDownloads.value
+    pendingTraditionalDownloads.value = null
+    await downloadTiles([{ tiles: pending } as ImageItem])
+  }
+
+  const changeExportDirectory = async () => {
+    await directoryExport.chooseDirectory()
   }
 
   const downloadSingleImage = async (id: string) => {
@@ -384,6 +406,7 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
 
   // 初始化持久化的自动下载开关
   restoreAutoDownload()
+  void directoryExport.restore()
 
   return {
     fileInput,
@@ -403,6 +426,11 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
     triggerDownloads,
     downloadSingleImage,
     processAll,
+    directoryExportSupported: directoryExport.isSupported,
+    directoryExportReady: directoryExport.hasWritableDirectory,
+    pendingTraditionalDownloads,
+    changeExportDirectory,
+    retryPendingTraditionalDownloads,
     addFiles,
     onFileChange,
     onDrop,
@@ -410,7 +438,6 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
     onDragLeave,
     handleGlobalDragOver,
     handleGlobalDrop,
-    requestDownloadPermission,
     triggerFileSelect,
   }
 }

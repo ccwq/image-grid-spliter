@@ -25,9 +25,9 @@ type Translations = Record<
     }
     stats: { currentGrid: string; tileCount: string; imageSize: string; exportFormat: string; downloadStatus: string; notLoaded: string }
     grid: { eyebrow: string; title: string; subtitle: string; columns: string; rows: string; apply: string }
-    export: { eyebrow: string; title: string; subtitle: string; formatLabel: string; qualityLabel: string; qualityAria: string; autoDownloadLabel: string; autoDownloadHint: string }
+    export: { eyebrow: string; title: string; subtitle: string; formatLabel: string; qualityLabel: string; qualityAria: string; autoDownloadLabel: string; autoDownloadHint: string; directoryReady: string; directoryAvailable: string; directoryFallback: string; changeDirectory: string }
     upload: { title: string; subtitle: string; tip: string; currentPrefix: string; sizePrefix: string; queuePrefix: (count: number) => string }
-    results: { original: string; emptyUpload: string; result: string; waiting: string; previewPlaceholder: string; queueSummary: (count: number) => string }
+    results: { original: string; emptyUpload: string; result: string; waiting: string; previewPlaceholder: string; queueSummary: (count: number) => string; partialExport: (written: number, pending: number) => string; retryTraditionalDownload: string }
     status: {
       waiting: string
       batchDownloading: string
@@ -108,6 +108,10 @@ const translations: Translations = {
       qualityAria: 'JPG 压缩强度',
       autoDownloadLabel: '自动下载切片',
       autoDownloadHint: '默认关闭；开启后裁切完成即触发下载，未开启则需手动点击“下载全部”或逐图下载。',
+      directoryReady: '已启用目录直写；“下载全部”会直接保存切片。',
+      directoryAvailable: '支持指定导出目录；首次“下载全部”时选择目录。',
+      directoryFallback: '此浏览器使用传统逐张下载；保存位置由浏览器设置决定。',
+      changeDirectory: '更换导出目录',
     },
     upload: {
       title: '拖拽图片到此处，或点击选择',
@@ -124,6 +128,8 @@ const translations: Translations = {
       waiting: '等待裁切',
       previewPlaceholder: '裁切完成后将在此展示切片预览',
       queueSummary: (count: number) => `队列中有 ${count} 张图片`,
+      partialExport: (written: number, pending: number) => `已有 ${written} 个文件写入目录，${pending} 个文件未完成。`,
+      retryTraditionalDownload: '以传统下载重试未完成项',
     },
     status: {
       waiting: '等待上传图片并选择网格',
@@ -209,6 +215,10 @@ const translations: Translations = {
       qualityAria: 'JPG quality',
       autoDownloadLabel: 'Auto download tiles',
       autoDownloadHint: 'Off by default. When enabled, slicing completion triggers downloads; otherwise click “Download all” or per-image download.',
+      directoryReady: 'Directory export is ready. Download all writes tiles directly there.',
+      directoryAvailable: 'This browser supports an export folder. Choose it on your first Download all.',
+      directoryFallback: 'This browser uses standard per-file downloads; the save location is controlled by browser settings.',
+      changeDirectory: 'Change export folder',
     },
     upload: {
       title: 'Drop image here or click to select',
@@ -225,6 +235,8 @@ const translations: Translations = {
       waiting: 'Waiting to slice',
       previewPlaceholder: 'Tile previews will appear here after slicing',
       queueSummary: (count: number) => `${count} image(s) in queue`,
+      partialExport: (written: number, pending: number) => `${written} file(s) were written; ${pending} file(s) remain.`,
+      retryTraditionalDownload: 'Retry remaining with standard downloads',
     },
     status: {
       waiting: 'Waiting for image upload and grid selection',

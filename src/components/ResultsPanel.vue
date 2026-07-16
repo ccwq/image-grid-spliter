@@ -12,6 +12,7 @@ interface Props {
   processing: boolean
   icons: Record<string, unknown>
   collapsed: boolean
+  pendingTraditionalDownloads: { written: number; pending: number } | null
 }
 
 const props = defineProps<Props>()
@@ -22,6 +23,7 @@ const emit = defineEmits<{
   (e: 'preview-tile', id: string): void
   (e: 'preview-all'): void
   (e: 'toggle-collapsed'): void
+  (e: 'retry-pending-downloads'): void
 }>()
 </script>
 
@@ -50,6 +52,10 @@ const emit = defineEmits<{
           <Icon :icon="props.icons.download" class="btn-icon" aria-hidden="true" />
           {{ props.tr.buttons.downloadAll }}
         </button>
+        <div v-if="props.pendingTraditionalDownloads" class="export-retry">
+          <p class="muted small">{{ props.tr.results.partialExport(props.pendingTraditionalDownloads.written, props.pendingTraditionalDownloads.pending) }}</p>
+          <button class="ghost" type="button" :disabled="props.processing" @click="emit('retry-pending-downloads')">{{ props.tr.results.retryTraditionalDownload }}</button>
+        </div>
       </div>
     </div>
     <div v-if="!props.collapsed" class="image-list">
