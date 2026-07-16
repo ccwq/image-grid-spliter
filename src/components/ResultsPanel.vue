@@ -30,7 +30,7 @@ const emit = defineEmits<{
 <template>
   <section v-if="props.images.length" class="panel results">
     <div class="results-header">
-      <div>
+      <div class="results-overview">
         <p class="eyebrow">{{ props.tr.results.result }}</p>
         <h3>{{ props.tilesHeading }}</h3>
         <p class="muted">{{ props.resultsSummary }}</p>
@@ -47,8 +47,8 @@ const emit = defineEmits<{
           />
           <span>{{ props.tr.buttons.autoDownload }}</span>
         </label>
-        <p class="muted small">{{ props.tr.export.autoDownloadHint }}</p>
-        <button class="ghost" type="button" :disabled="props.processing" @click="emit('trigger-downloads')">
+        <p class="muted small auto-download-hint">{{ props.tr.export.autoDownloadHint }}</p>
+        <button class="ghost results-download" type="button" :disabled="props.processing" @click="emit('trigger-downloads')">
           <Icon :icon="props.icons.download" class="btn-icon" aria-hidden="true" />
           {{ props.tr.buttons.downloadAll }}
         </button>
@@ -73,8 +73,8 @@ const emit = defineEmits<{
         <div class="tiles-card">
           <div class="tiles-header">
             <div>
-              <p class="eyebrow">{{ props.tr.results.result }}</p>
-              <h3>{{ props.tr.format.tilesHeading(image.tiles.length) }}</h3>
+              <h3 class="image-title">{{ image.baseName }}</h3>
+              <p class="muted image-tile-count">{{ props.tr.format.tilesHeading(image.tiles.length) }}</p>
             </div>
             <div class="tiles-actions">
               <button class="ghost" type="button" :disabled="!image.tiles.length" @click="emit('preview-all')">

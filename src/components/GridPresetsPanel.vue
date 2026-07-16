@@ -19,9 +19,18 @@ interface Props {
   edgeErasePadding: number
   edgeEraseUnit: 'percent' | 'px'
   includeOuter: boolean
+  disabled?: boolean
+  showPresets?: boolean
+  showCustomGrid?: boolean
+  showEdgeErase?: boolean
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  disabled: false,
+  showPresets: true,
+  showCustomGrid: true,
+  showEdgeErase: true,
+})
 const emit = defineEmits<{
   (e: 'select-preset', preset: GridPreset): void
   (e: 'toggle-presets'): void
@@ -37,17 +46,17 @@ const emit = defineEmits<{
 
 <template>
   <section class="panel grid-panel">
-    <div class="grid-toolbar">
+    <div v-if="props.showPresets" class="grid-toolbar">
       <span class="field-label"><Icon :icon="props.icons.grid" class="inline-icon" aria-hidden="true" /> 网格</span>
     </div>
-    <div class="preset-grid">
+    <div v-if="props.showPresets" class="preset-grid">
       <button
         v-for="preset in props.visiblePresets"
         :key="preset.label"
         type="button"
         class="preset"
         :class="{ active: props.selectedPreset.cols === preset.cols && props.selectedPreset.rows === preset.rows }"
-        :disabled="props.processing"
+        :disabled="props.processing || props.disabled"
         @click="emit('select-preset', preset)"
       >
         <span class="preset-heading">
@@ -57,13 +66,13 @@ const emit = defineEmits<{
         <!-- <span class="preset-sub">{{ props.tr.format.presetSub(preset.cols, preset.rows) }}</span> -->
       </button>
     </div>
-    <div v-if="props.showPresetToggle" class="preset-toggle">
-      <button class="ghost" type="button" @click="emit('toggle-presets')">
+    <div v-if="props.showPresets && props.showPresetToggle" class="preset-toggle">
+      <button class="ghost" type="button" :disabled="props.disabled" @click="emit('toggle-presets')">
         <Icon :icon="props.presetExpanded ? props.icons.chevronUp : props.icons.chevronDown" class="btn-icon" aria-hidden="true" />
         {{ props.presetExpanded ? props.tr.buttons.collapsePresets : props.tr.buttons.expandPresets }}
       </button>
     </div>
-    <div class="custom-grid" aria-label="自定义网格">
+    <div v-if="props.showCustomGrid" class="custom-grid" aria-label="自定义网格">
       <div class="custom-fields">
         <label>
           {{ props.tr.grid.columns }}
@@ -72,6 +81,7 @@ const emit = defineEmits<{
             type="number"
             min="1"
             inputmode="numeric"
+            :disabled="props.processing || props.disabled"
             @input="emit('update:customCols', Number(($event.target as HTMLInputElement).value))"
           />
         </label>
@@ -82,28 +92,29 @@ const emit = defineEmits<{
             type="number"
             min="1"
             inputmode="numeric"
+            :disabled="props.processing || props.disabled"
             @input="emit('update:customRows', Number(($event.target as HTMLInputElement).value))"
           />
         </label>
       </div>
       <div class="custom-actions">
         <span class="custom-title">自定义网格</span>
-        <button type="button" class="ghost" :disabled="props.processing" @click="emit('apply-custom-grid')">
+        <button type="button" class="ghost" :disabled="props.processing || props.disabled" @click="emit('apply-custom-grid')">
           <Icon :icon="props.icons.check" class="btn-icon" aria-hidden="true" />
           {{ props.tr.grid.apply }}
         </button>
       </div>
     </div>
-    <div class="edge-row" :class="{ disabled: !props.edgeEraseEnabled }">
-      <label class="edge-switch"><input type="checkbox" :checked="props.edgeEraseEnabled" @change="emit('update:edge-erase-enabled', ($event.target as HTMLInputElement).checked)" />边线擦除</label>
+    <div v-if="props.showEdgeErase" class="edge-row" :class="{ disabled: !props.edgeEraseEnabled || props.disabled }">
+      <label class="edge-switch"><input type="checkbox" :checked="props.edgeEraseEnabled" :disabled="props.processing || props.disabled" @change="emit('update:edge-erase-enabled', ($event.target as HTMLInputElement).checked)" />边线擦除</label>
       <div class="edge-controls">
         <template v-if="props.edgeEraseUnit === 'percent'">
-          <button v-for="value in [1, 2, 3, 5]" :key="value" type="button" class="ghost" :class="{ active: props.edgeErasePadding === value }" :disabled="!props.edgeEraseEnabled" @click="emit('update:edge-erase-padding', value)">{{ value }}%</button>
+          <button v-for="value in [1, 2, 3, 5]" :key="value" type="button" class="ghost" :class="{ active: props.edgeErasePadding === value }" :disabled="props.processing || props.disabled || !props.edgeEraseEnabled" @click="emit('update:edge-erase-padding', value)">{{ value }}%</button>
         </template>
-        <input :value="props.edgeErasePadding" type="number" min="0" step="0.1" :disabled="!props.edgeEraseEnabled" @input="emit('update:edge-erase-padding', Number(($event.target as HTMLInputElement).value))" />
-        <button type="button" class="ghost" :disabled="!props.edgeEraseEnabled" @click="emit('update:edge-erase-unit', props.edgeEraseUnit === 'percent' ? 'px' : 'percent')">{{ props.edgeEraseUnit === 'percent' ? '%' : 'px' }}</button>
+        <input :value="props.edgeErasePadding" type="number" min="0" step="0.1" :disabled="props.processing || props.disabled || !props.edgeEraseEnabled" @input="emit('update:edge-erase-padding', Number(($event.target as HTMLInputElement).value))" />
+        <button type="button" class="ghost" :disabled="props.processing || props.disabled || !props.edgeEraseEnabled" @click="emit('update:edge-erase-unit', props.edgeEraseUnit === 'percent' ? 'px' : 'percent')">{{ props.edgeEraseUnit === 'percent' ? '%' : 'px' }}</button>
       </div>
-      <label class="outer-toggle"><input type="checkbox" :checked="props.includeOuter" :disabled="!props.edgeEraseEnabled" @change="emit('update:include-outer', ($event.target as HTMLInputElement).checked)" />包含外边缘</label>
+      <label class="outer-toggle"><input type="checkbox" :checked="props.includeOuter" :disabled="props.processing || props.disabled || !props.edgeEraseEnabled" @change="emit('update:include-outer', ($event.target as HTMLInputElement).checked)" />包含外边缘</label>
     </div>
   </section>
 </template>
