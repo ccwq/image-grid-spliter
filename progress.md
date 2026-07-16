@@ -32,3 +32,10 @@
 - 已完成 Chromium CDP UI 回归：支持目录时显示首次选择目录说明与“更换导出目录”，浏览器控制台无错误；截图在 `%TEMP%\\agent-browser-captures\\directory-export-settings.png`。
 - `agent-browser skills get core --full` 在已安装 v0.24.0 中不存在；改以 `--help` 获取等价命令后完成 CDP 回归。
 - 最终自动化验证通过：`pnpm test`（20 tests）、`pnpm exec vue-tsc --noEmit`、`pnpm build`、`openspec validate add-directory-batch-export --strict`、`git diff --check`。真实 Windows 目录确认和文件落盘需由用户在系统选择器中手动完成。
+- 完成紧凑工作区审计和实施：桌面为控制侧栏与上传/结果主区，移动端上传优先并以可折叠控制栏承载全部设置。
+- 新增 fixed `ExportProgressOverlay`，实际 CDP 截图验证“正在生成 1 / 4”进度和关闭按钮；目录直写/传统下载完成后会按各自语义显示报告。
+- CDP 首次以未加引号的 `@e7` 元素引用点击失败，原因是 PowerShell 将 `@` 当作特殊标记；改为 `click '@e7'` 后成功展开移动控制栏。
+- 本轮验证通过：`pnpm test`（20 tests）、`pnpm exec vue-tsc --noEmit`、`pnpm build`、`openspec validate refactor-compact-export-workspace --strict` 和 `git diff --check`。桌面、移动、上传后的结果入口及控制台无错误均已 CDP 验证。
+- 修复有图态上传区仍占满右侧主区的问题：仅空态保留桌面最小高度；有图时 `UploadPanel` 收缩为继续添加、队列、文件名和尺寸的紧凑栏。
+- 修改后 CDP：1264px 桌面上传栏高 149.6px，结果区从 y=337.6 开始；390px 移动上传栏高 156px，结果从 y=326 开始。复审 agent ACCEPT，确认无横向溢出、长文件名截断且主要上传/下载/预览入口保持可用。
+- 删除 `SliceEditor` 内重复的边线擦除、单位和外边缘控制，仅保留分割线编辑；`GridPresetsPanel` 成为唯一边线擦除入口，并在 PC 与移动端统一使用两列两行紧凑布局。CDP 指定 tab 复查通过，`pnpm build` 与 OpenSpec 严格校验通过。
