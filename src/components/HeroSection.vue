@@ -27,7 +27,7 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <header class="hero">
+  <header class="hero" :class="{ compact: props.hasImage }">
     <div class="hero-text">
       <p class="eyebrow">
         <Icon :icon="props.icons.grid" class="inline-icon" aria-hidden="true" />

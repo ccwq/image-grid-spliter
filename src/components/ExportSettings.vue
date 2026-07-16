@@ -21,16 +21,9 @@ const emit = defineEmits<{
 
 <template>
   <section class="panel export-panel">
-    <div class="panel-header">
-      <div>
-        <p class="eyebrow">{{ props.tr.export.eyebrow }}</p>
-        <h2>{{ props.tr.export.title }}</h2>
-        <p class="muted">{{ props.tr.export.subtitle }}</p>
-      </div>
-    </div>
-    <div class="export-controls">
-      <div class="export-field">
-        <span class="field-label">{{ props.tr.export.formatLabel }}</span>
+    <div class="export-controls" aria-label="导出设置">
+      <span class="export-summary">导出：{{ props.exportFormat.toUpperCase() }}</span>
+      <div class="export-field export-format-field">
         <div class="format-radios" role="radiogroup" :aria-label="props.tr.export.formatLabel">
           <label class="radio-pill">
             <Icon :icon="props.icons.file" class="btn-icon" aria-hidden="true" />
@@ -56,7 +49,7 @@ const emit = defineEmits<{
           </label>
         </div>
       </div>
-      <label class="export-field" :style="{ opacity: props.processing || !props.isJpgFormat ? 0.3 : 1 }">
+      <label class="export-field export-quality-field" :style="{ opacity: props.processing || !props.isJpgFormat ? 0.3 : 1 }">
         <span class="field-label">{{ props.tr.export.qualityLabel }}</span>
         <div class="quality-control">
           <input
@@ -75,3 +68,7 @@ const emit = defineEmits<{
     </div>
   </section>
 </template>
+
+<style scoped>
+.export-controls{display:flex;align-items:center;min-width:0;gap:8px;white-space:nowrap}.export-summary{flex:0 0 auto;color:#dff4ee;font-size:12px;font-weight:700}.export-field{display:flex;align-items:center;min-width:0;gap:5px}.export-format-field{flex:0 0 auto}.format-radios{display:flex;flex-wrap:nowrap;gap:5px}.radio-pill{display:flex;align-items:center;gap:2px;font-size:12px}.radio-pill .btn-icon{width:13px;height:13px}.export-quality-field{flex:1 1 0}.export-quality-field .field-label{font-size:12px}.quality-control{display:flex;align-items:center;flex:1 1 0;min-width:0;gap:4px}.quality-control input{flex:1 1 0;min-width:46px}.quality-text{font-size:12px;font-weight:700}@media(max-width:640px){.export-controls{gap:4px}.export-summary,.radio-pill,.export-quality-field .field-label,.quality-text{font-size:11px}.radio-pill .btn-icon{display:none}.format-radios{gap:3px}.export-quality-field{gap:3px}.quality-control{gap:3px}}
+</style>
