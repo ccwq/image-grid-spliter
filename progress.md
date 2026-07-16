@@ -21,3 +21,14 @@
 - 快捷按钮集收敛为 `1x1、1x2、2x1、2x2、3x3、4x4、2x4、4x2`。
 - 紧凑视觉规范：按钮统一为 32px 小尺寸，控件间距收敛为 6-10px；数字输入和下拉使用深色表面、边框及可见 focus ring，保留分割线 36px 触控热区。
 - 拖线跳动根因：分割线节点使用位置值作为 Vue key，位置变动时节点被重建并丢失 pointer capture。修复为稳定的轴向索引 key，并在组件本地维护拖动草稿，松手后才提交结果重算；靠近常用比例时弱吸附。
+
+## 2026-07-16
+
+- 完成目录直写批量导出的可行性调查和逐项需求拷问。
+- 已写入 ADR-0001 与术语表；不引入 ZIP，回退为既有传统逐张下载。
+- OpenSpec 提案首次写入因 `findings.md` 上下文不匹配被拒绝；已重新读取文件并改用分批补丁。
+- 已创建并校验 `add-directory-batch-export`：`openspec validate add-directory-batch-export --strict` 通过，`git diff --check` 无错误。
+- 已实现 `useDirectoryExport` 深 module、IndexedDB 句柄复用、`readwrite` 目录选择、`-1` 重名与部分失败显式重试；传统逐张下载保留为唯一降级。
+- 已完成 Chromium CDP UI 回归：支持目录时显示首次选择目录说明与“更换导出目录”，浏览器控制台无错误；截图在 `%TEMP%\\agent-browser-captures\\directory-export-settings.png`。
+- `agent-browser skills get core --full` 在已安装 v0.24.0 中不存在；改以 `--help` 获取等价命令后完成 CDP 回归。
+- 最终自动化验证通过：`pnpm test`（20 tests）、`pnpm exec vue-tsc --noEmit`、`pnpm build`、`openspec validate add-directory-batch-export --strict`、`git diff --check`。真实 Windows 目录确认和文件落盘需由用户在系统选择器中手动完成。
