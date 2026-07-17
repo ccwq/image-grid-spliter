@@ -65,11 +65,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
   .mobile-download-trigger { border-color:#47d7ba; background:#47d7ba; color:#09201f; font-weight:800; }
   .mobile-download-trigger:disabled { border-color:rgb(203 239 231 / .18); background:#25343a; color:#7e9693; }
   .drawer-backdrop { position: fixed; z-index: 45; inset: 0; width: 100%; height: 100%; border: 0; border-radius: 0; background: rgb(3 10 13 / .64); }
-  .drawer-sheet { position: fixed; z-index: 46; right: 0; bottom: 0; left: 0; display: grid; max-height: min(78dvh, 680px); overflow: hidden; border: 1px solid rgb(143 215 202 / .25); border-radius: 16px 16px 0 0; background: #152129; box-shadow: 0 -12px 36px rgb(0 0 0 / .35); }
+  .drawer-sheet { position: fixed; z-index: 46; right: 0; bottom: 0; left: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); height: min(86dvh, 760px); overflow: hidden; border: 1px solid rgb(143 215 202 / .25); border-radius: 16px 16px 0 0; background: #152129; box-shadow: 0 -12px 36px rgb(0 0 0 / .35); }
   .drawer-header { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 12px; border-bottom:1px solid rgb(203 239 231 / .12); }
   .drawer-header .eyebrow { margin:0 0 1px; }.drawer-header strong { font-size:14px; }.drawer-header .ghost { min-height:30px; font-size:12px; }
   .drawer-empty { margin:10px 12px 0; padding:8px; border:1px dashed rgb(203 239 231 / .2); border-radius:8px; color:#a9c1be; font-size:12px; }
-  .drawer-content { display:grid; gap:8px; overflow:auto; padding:10px 12px calc(14px + env(safe-area-inset-bottom)); }
+  .drawer-content { display:grid; min-height:0; gap:8px; overflow-y:auto; overscroll-behavior:contain; padding:10px 12px calc(14px + env(safe-area-inset-bottom)); }
   .drawer-content.disabled { opacity:.5; pointer-events:none; }
   .drawer-content :deep(.panel) { padding:9px; }
   .drawer-backdrop-enter-active,.drawer-backdrop-leave-active { transition: opacity .16s ease; }.drawer-backdrop-enter-from,.drawer-backdrop-leave-to { opacity:0; }
