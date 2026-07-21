@@ -12,6 +12,7 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(appVersion),
   },
   server:{
+    port: 62313,
     host: "0.0.0.0",
     allowedHosts: true,
   },
@@ -23,8 +24,8 @@ export default defineConfig({
         name: 'Image Grid Spliter',
         short_name: 'GridSpliter',
         description: '图片网格裁切 PWA，支持批量下载与离线使用。',
-        theme_color: '#0f172a',
-        background_color: '#0f172a',
+        theme_color: '#0f1a20',
+        background_color: '#0f1a20',
         display: 'standalone',
         start_url: '.',
         icons: [

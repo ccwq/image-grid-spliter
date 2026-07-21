@@ -2,7 +2,7 @@ import imageCompression from 'browser-image-compression'
 import { computed, reactive, ref } from 'vue'
 import { computeTileRectsFromLines, type GridPreset, type SlicePlan } from '../utils/grid'
 import type { LocaleMessages, ExportFormat } from './useLocale'
-import { useDirectoryExport } from './useDirectoryExport'
+import { useDirectoryExport, type SaveAsResult } from './useDirectoryExport'
 import {fileSha256} from "../utils/fileUtils.ts";
 
 export interface TileResult {
@@ -61,6 +61,8 @@ interface ImageSlicerDeps {
   gridDescription: { value: string }
   currentMessages: { value: LocaleMessages }
 }
+
+export type PreviewSaveResult = 'saved' | 'fallback' | 'missing'
 
 const AUTO_DOWNLOAD_KEY = 'igs:auto-download'
 
@@ -429,6 +431,20 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
     await directoryExport.chooseDirectory()
   }
 
+  /** 预览保存只复用已授权目录，绝不在预览内主动请求目录权限。 */
+  const savePreviewTile = async (id: string): Promise<PreviewSaveResult> => {
+    const tile = images.value.flatMap((image) => image.tiles).find((item) => item.id === id)
+    if (!tile) return 'missing'
+    if (!await directoryExport.canAutoExport()) return 'fallback'
+    const result = await directoryExport.writeFiles([{ name: tile.name, blob: tile.blob }])
+    return result.kind === 'complete' && result.written.length === 1 ? 'saved' : 'fallback'
+  }
+
+  const savePreviewTileAs = async (id: string): Promise<SaveAsResult | 'missing'> => {
+    const tile = images.value.flatMap((image) => image.tiles).find((item) => item.id === id)
+    return tile ? directoryExport.saveFileAs({ name: tile.name, blob: tile.blob }) : 'missing'
+  }
+
   const downloadSingleImage = async (id: string) => {
     const target = images.value.find((img) => img.id === id)
     if (!target || state.processing) return
@@ -520,6 +536,8 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
     directoryExportReady: directoryExport.hasWritableDirectory,
     pendingTraditionalDownloads,
     changeExportDirectory,
+    savePreviewTile,
+    savePreviewTileAs,
     retryPendingTraditionalDownloads,
     addFiles,
     onFileChange,

@@ -13,8 +13,17 @@ type Translations = Record<
       downloadAll: string
       downloadImage: string
       previewTile: string
-      previewAll: string
       previewDownload: string
+      previewSave: string
+      previewSaveAs: string
+      previewSaving: string
+      previewSaved: string
+      previewDownloaded: string
+      previewDownloadFallback: string
+      previewSaveAsUnavailable: string
+      previewSaveAsCancelled: string
+      previewSaveAsFailed: string
+      previewSaveFailed: string
       clear: string
       expandPresets: string
       collapsePresets: string
@@ -24,6 +33,10 @@ type Translations = Record<
       autoDownload: string
       showControls: string
       hideControls: string
+      addImages: string
+      expandResults: string
+      collapseResults: string
+      toggleEdgeUnit: string
     }
     stats: { currentGrid: string; tileCount: string; imageSize: string; exportFormat: string; downloadStatus: string; notLoaded: string }
     grid: { eyebrow: string; title: string; subtitle: string; columns: string; rows: string; apply: string }
@@ -76,8 +89,17 @@ const translations: Translations = {
       downloadAll: '下载全部',
       downloadImage: '下载此图片',
       previewTile: '预览此切片',
-      previewAll: '预览全部切片',
       previewDownload: '下载当前切片',
+      previewSave: '保存',
+      previewSaveAs: '另存为',
+      previewSaving: '保存中…',
+      previewSaved: '已保存到导出目录',
+      previewDownloaded: '已触发浏览器下载',
+      previewDownloadFallback: '导出目录不可用，已改用浏览器下载',
+      previewSaveAsUnavailable: '当前浏览器不支持另存为，请使用下载',
+      previewSaveAsCancelled: '已取消另存为',
+      previewSaveAsFailed: '另存为失败，请重试或使用下载',
+      previewSaveFailed: '当前切片不可用，无法保存',
       clear: '清除当前图片',
       expandPresets: '展开更多预设',
       collapsePresets: '收起预设',
@@ -87,6 +109,10 @@ const translations: Translations = {
       autoDownload: '自动下载',
       showControls: '展开控制',
       hideControls: '收起控制',
+      addImages: '继续添加图片',
+      expandResults: '查看宫格',
+      collapseResults: '收起宫格',
+      toggleEdgeUnit: '切换边线单位',
     },
     stats: {
       currentGrid: '当前网格',
@@ -195,8 +221,17 @@ const translations: Translations = {
       downloadAll: 'Download all',
       downloadImage: 'Download this image',
       previewTile: 'Preview this tile',
-      previewAll: 'Preview all tiles',
       previewDownload: 'Download current tile',
+      previewSave: 'Save',
+      previewSaveAs: 'Save as',
+      previewSaving: 'Saving…',
+      previewSaved: 'Saved to the export folder',
+      previewDownloaded: 'Browser download triggered',
+      previewDownloadFallback: 'Export folder unavailable; used browser download instead',
+      previewSaveAsUnavailable: 'Save as is unavailable in this browser; use Download instead',
+      previewSaveAsCancelled: 'Save as cancelled',
+      previewSaveAsFailed: 'Save as failed; retry or use Download',
+      previewSaveFailed: 'The current tile is unavailable and cannot be saved',
       clear: 'Clear image',
       expandPresets: 'Show more presets',
       collapsePresets: 'Hide presets',
@@ -206,6 +241,10 @@ const translations: Translations = {
       autoDownload: 'Auto download',
       showControls: 'Show controls',
       hideControls: 'Hide controls',
+      addImages: 'Add images',
+      expandResults: 'Show grid',
+      collapseResults: 'Hide grid',
+      toggleEdgeUnit: 'Switch edge unit',
     },
     stats: {
       currentGrid: 'Current grid',

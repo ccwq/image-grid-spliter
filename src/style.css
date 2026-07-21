@@ -3,7 +3,7 @@
   line-height: 1.4;
   font-weight: 500;
   color: #e2e8f0;
-  background-color: #0f172a;
+  background-color: #0f1a20;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -23,6 +23,12 @@ body {
   font-size: 15px;
 }
 
+html,
+body,
+#app {
+  min-height: 100dvh;
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -31,7 +37,7 @@ a {
 #app {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 18px 20px;
+  padding: max(18px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
 }
 
 button {
@@ -68,6 +74,14 @@ button:disabled {
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
+}
+
+button:focus-visible,
+input[type='checkbox']:focus-visible,
+input[type='radio']:focus-visible {
+  outline: 2px solid #68d2be;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 3px rgb(104 210 190 / .18);
 }
 
 .btn-icon {
@@ -126,21 +140,42 @@ input[type='range'] {
 
 /* 让下拉项在深色主题下也保持统一色调 */
 select option {
-  background-color: #0f172a;
+  background-color: #0f1a20;
   color: #e2e8f0;
 }
 
-/* PhotoSwipe 下载按钮样式 */
-.pswp__button--download-button {
-  color: #ffffff !important;
+/* PhotoSwipe 预览导出动作：保存为主，下载与另存为保持独立且可辨。 */
+.pswp__button--save-button,
+.pswp__button--download-button,
+.pswp__button--save-as-button {
+  min-width: 42px;
+  padding: 0 10px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: #f8fffd !important;
+  transition: min-width .18s ease, background-color .18s ease, color .18s ease, transform .18s ease !important;
 }
+
+.pswp__button--save-button { min-width: 52px; background: #167a68 !important; }
+.pswp__button--download-button { background: #304954 !important; }
+.pswp__button--save-as-button { min-width: 36px; background: #263741 !important; }
+.pswp__button--save-button.is-busy,
+.pswp__button--save-as-button.is-busy { min-width: 76px; background: #285d72 !important; animation: pswp-save-pulse 1s ease-in-out infinite; }
+.pswp__button--save-button.is-success,
+.pswp__button--download-button.is-success,
+.pswp__button--save-as-button.is-success { background: #1b9b68 !important; transform: scale(1.08); }
+.pswp__preview-feedback { position: absolute; z-index: 2; left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); max-width: min(420px, calc(100vw - 32px)); padding: 10px 14px; border: 1px solid rgb(184 255 224 / .34); border-radius: 999px; color: #f5fffb; background: rgb(12 32 37 / .94); box-shadow: 0 10px 30px rgb(0 0 0 / .35); font-size: 13px; font-weight: 700; text-align: center; opacity: 0; pointer-events: none; transform: translate(-50%, 12px); transition: opacity .18s ease, transform .18s ease; }
+.pswp__preview-feedback[data-visible='true'] { opacity: 1; transform: translate(-50%, 0); }
+.pswp__preview-feedback[data-tone='success'] { border-color: rgb(111 245 179 / .6); }
+.pswp__preview-feedback[data-tone='error'] { border-color: rgb(255 153 153 / .65); color: #ffe5e5; }
+@keyframes pswp-save-pulse { 50% { transform: scale(.96); } }
 
 @media (max-width: 768px) {
   body {
     font-size: 13px;
   }
   #app {
-    padding: 10px 12px;
+    padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
   }
   button {
     min-height: 32px;

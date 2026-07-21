@@ -29,25 +29,29 @@ const emit = defineEmits<{
     <div
       class="dropzone"
       :class="{ over: props.dragOver }"
+      :title="props.hasImage ? props.tr.buttons.addImages : props.tr.upload.title"
       @click="emit('pick')"
       @dragover.prevent="emit('dragover', $event)"
       @dragleave="emit('dragleave')"
       @drop.prevent="emit('drop', $event)"
     >
       <slot name="file-input" />
-      <div class="drop-content" :class="{ 'drop-content--compact': props.hasImage }">
+      <div v-if="!props.hasImage" class="drop-content">
         <Icon :icon="props.icons.upload" class="drop-icon" aria-hidden="true" />
         <div class="drop-copy">
           <p class="drop-title">{{ props.tr.upload.title }}</p>
-          <p v-if="!props.hasImage" class="muted">{{ props.tr.upload.subtitle }}</p>
+          <p class="muted">{{ props.tr.upload.subtitle }}</p>
         </div>
-        <div v-if="props.hasImage" class="current-file">
-          <span class="chip">{{ props.queueSummary }}</span>
-          <span class="chip">{{ props.tr.upload.currentPrefix }}{{ props.firstBaseName }}</span>
-          <span v-if="props.firstImageSize" class="chip">
-            {{ props.tr.upload.sizePrefix }}{{ props.firstImageSize.width }} x {{ props.firstImageSize.height }}
-          </span>
+      </div>
+      <div v-else class="upload-status">
+        <Icon :icon="props.icons.image" class="drop-icon" aria-hidden="true" />
+        <div class="upload-status-copy">
+          <strong :title="props.firstBaseName">{{ props.firstBaseName }}</strong>
+          <span v-if="props.firstImageSize">{{ props.firstImageSize.width }} × {{ props.firstImageSize.height }} · {{ props.queueSummary }}</span>
         </div>
+        <button class="icon-only upload-add" type="button" :aria-label="props.tr.buttons.addImages" :title="props.tr.buttons.addImages" @click.stop="emit('pick')">
+          <Icon :icon="props.icons.imagePlus" class="btn-icon" aria-hidden="true" />
+        </button>
       </div>
     </div>
     <p v-if="!props.isMobile" class="muted">{{ props.tr.upload.tip }}</p>
@@ -60,18 +64,11 @@ const emit = defineEmits<{
 .drop-icon { width: 22px; height: 22px; color: #baffef; }
 .drop-title,.drop-copy .muted { margin: 0; }
 .drop-title { font-weight: 700; }
-.current-file { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; }
-.chip { display: inline-flex; max-width: min(100%, 360px); align-items: center; min-height: 25px; overflow: hidden; padding: 3px 7px; border: 1px solid rgb(143 215 202 / .22); border-radius: 999px; background: rgb(143 215 202 / .08); color: #cbe2dc; font-size: 12px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
-
 .has-image .dropzone { padding: 8px 10px; border-style: dashed; }
-.drop-content--compact { grid-template-columns: auto minmax(0, 1fr) minmax(0, auto); align-items: center; justify-items: stretch; gap: 9px; text-align: left; }
-.drop-content--compact .drop-icon { width: 18px; height: 18px; align-self: center; }
-.drop-content--compact .drop-copy { min-width: 0; }
-.drop-content--compact .drop-title { font-size: 13px; }
-.drop-content--compact .current-file { justify-content: flex-end; min-width: 0; }
+.upload-status { display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:8px; min-width:0; }
+.upload-status .drop-icon { width:18px; height:18px; }.upload-status-copy { display:grid; min-width:0; gap:1px; }.upload-status-copy strong,.upload-status-copy span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }.upload-status-copy strong { font-size:13px; }.upload-status-copy span { color:#a9c1be; font-size:11px; }.upload-add { flex:0 0 auto; }
 
 @media (max-width: 620px) {
-  .drop-content--compact { grid-template-columns: auto minmax(0, 1fr); }
-  .drop-content--compact .current-file { grid-column: 1 / -1; justify-content: flex-start; }
+  .upload-status-copy span { font-size:10px; }
 }
 </style>

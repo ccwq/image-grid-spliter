@@ -5,7 +5,7 @@ export interface DirectoryExportFile {
   blob: Blob
 }
 
-interface FileHandleLike {
+export interface FileHandleLike {
   createWritable(): Promise<{ write(data: Blob): Promise<void>; close(): Promise<void> }>
 }
 
@@ -22,18 +22,27 @@ export interface DirectoryStorage {
 
 export interface DirectoryExportOptions {
   showDirectoryPicker?: (options: { mode: 'readwrite' }) => Promise<DirectoryHandleLike>
+  showSaveFilePicker?: (options: FileSavePickerOptions) => Promise<FileHandleLike>
   storage?: DirectoryStorage
+}
+
+export interface FileSavePickerOptions {
+  suggestedName: string
+  types: Array<{ description: string; accept: Record<string, string[]> }>
 }
 
 export type DirectoryExportResult<T extends DirectoryExportFile = DirectoryExportFile> =
   | { kind: 'complete'; written: T[]; pending: T[]; renamed: number }
   | { kind: 'partial'; written: T[]; pending: T[]; renamed: number }
 
+export type SaveAsResult = 'saved' | 'unsupported' | 'cancelled' | 'failed'
+
 const DATABASE_NAME = 'image-grid-spliter'
 const STORE_NAME = 'directory-export'
 const HANDLE_KEY = 'selected-directory'
 
 const getPicker = () => (window as Window & { showDirectoryPicker?: (options: { mode: 'readwrite' }) => Promise<DirectoryHandleLike> }).showDirectoryPicker
+const getSavePicker = () => (window as Window & { showSaveFilePicker?: (options: FileSavePickerOptions) => Promise<FileHandleLike> }).showSaveFilePicker
 
 const openDatabase = () => new Promise<IDBDatabase>((resolve, reject) => {
   const request = indexedDB.open(DATABASE_NAME, 1)
@@ -87,6 +96,7 @@ const withSuffix = (name: string, suffix: number) => {
  */
 export function useDirectoryExport(options: DirectoryExportOptions = {}) {
   const picker = options.showDirectoryPicker ?? (typeof window === 'undefined' ? undefined : getPicker())
+  const savePicker = options.showSaveFilePicker ?? (typeof window === 'undefined' ? undefined : getSavePicker())
   const storage = options.storage ?? browserStorage
   const isSupported = ref(Boolean(picker))
   const hasWritableDirectory = ref(false)
@@ -182,6 +192,24 @@ export function useDirectoryExport(options: DirectoryExportOptions = {}) {
     return { kind: 'complete', written, pending: [], renamed }
   }
 
+  /** 另存为保持为显式用户动作，不会回退为浏览器下载。 */
+  const saveFileAs = async (file: DirectoryExportFile): Promise<SaveAsResult> => {
+    if (!savePicker) return 'unsupported'
+    const extension = file.name.includes('.') ? `.${file.name.split('.').pop()}` : ''
+    try {
+      const handle = await savePicker({
+        suggestedName: file.name,
+        types: [{ description: 'Image file', accept: { [file.blob.type || 'application/octet-stream']: extension ? [extension] : [] } }],
+      })
+      const writer = await handle.createWritable()
+      await writer.write(file.blob)
+      await writer.close()
+      return 'saved'
+    } catch (error) {
+      return error instanceof DOMException && error.name === 'AbortError' ? 'cancelled' : 'failed'
+    }
+  }
+
   return {
     isSupported,
     hasWritableDirectory,
@@ -190,5 +218,6 @@ export function useDirectoryExport(options: DirectoryExportOptions = {}) {
     prepareManualExport,
     canAutoExport,
     writeFiles,
+    saveFileAs,
   }
 }

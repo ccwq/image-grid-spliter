@@ -21,7 +21,6 @@ const emit = defineEmits<{
   (e: 'toggle-auto-download', value: boolean): void
   (e: 'download-image', id: string): void
   (e: 'preview-tile', id: string): void
-  (e: 'preview-all'): void
   (e: 'toggle-collapsed'): void
   (e: 'retry-pending-downloads'): void
 }>()
@@ -35,7 +34,7 @@ const emit = defineEmits<{
         <h3>{{ props.tilesHeading }}</h3>
         <p class="muted">{{ props.resultsSummary }}</p>
         <p class="muted">{{ props.tr.results.queueSummary(props.images.length) }}</p>
-        <button class="link-btn" type="button" @click="emit('toggle-collapsed')">{{ props.collapsed ? '查看宫格' : '收起宫格' }}</button>
+        <button class="link-btn result-collapse" type="button" :aria-label="props.collapsed ? props.tr.buttons.expandResults : props.tr.buttons.collapseResults" :title="props.collapsed ? props.tr.buttons.expandResults : props.tr.buttons.collapseResults" @click="emit('toggle-collapsed')"><Icon :icon="props.collapsed ? props.icons.chevronDown : props.icons.chevronUp" class="btn-icon" aria-hidden="true" /><span>{{ props.collapsed ? props.tr.buttons.expandResults : props.tr.buttons.collapseResults }}</span></button>
       </div>
       <div class="results-actions">
         <label class="auto-toggle">
@@ -73,29 +72,18 @@ const emit = defineEmits<{
         <div class="tiles-card">
           <div class="tiles-header">
             <div>
-              <h3 class="image-title">{{ image.baseName }}</h3>
               <p class="muted image-tile-count">{{ props.tr.format.tilesHeading(image.tiles.length) }}</p>
             </div>
             <div class="tiles-actions">
-              <button class="ghost" type="button" :disabled="!image.tiles.length" @click="emit('preview-all')">
-                <Icon :icon="props.icons.image" class="btn-icon" aria-hidden="true" />
-                {{ props.tr.buttons.previewAll }}
-              </button>
-              <button class="ghost" type="button" :disabled="props.processing" @click="emit('download-image', image.id)">
+              <button class="ghost compact-result-action" type="button" :disabled="props.processing" :aria-label="props.tr.buttons.downloadImage" :title="props.tr.buttons.downloadImage" @click="emit('download-image', image.id)">
                 <Icon :icon="props.icons.download" class="btn-icon" aria-hidden="true" />
-                {{ props.tr.buttons.downloadImage }}
+                <span>{{ props.tr.buttons.downloadImage }}</span>
               </button>
             </div>
           </div>
           <div v-if="image.tiles.length" class="tiles-grid">
             <div v-for="tile in image.tiles" :key="tile.id" class="tile" @click="emit('preview-tile', tile.id)">
               <img :src="tile.previewUrl" :alt="tile.name" loading="lazy" />
-              <div class="tile-footer">
-                <p class="tile-name">{{ tile.name }}</p>
-                <button class="link-btn" type="button" @click.stop="emit('preview-tile', tile.id)">
-                  {{ props.tr.buttons.previewTile }}
-                </button>
-              </div>
             </div>
           </div>
           <p v-else class="muted">{{ props.tr.results.previewPlaceholder }}</p>

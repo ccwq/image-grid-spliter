@@ -126,4 +126,49 @@ describe('useDirectoryExport', () => {
     expect(result.pending.map((file) => file.name)).toEqual(['second.png', 'third.png'])
     expect(writes).toEqual(['first.png'])
   })
+
+  /**
+   * Given：浏览器支持文件另存为且用户确认目标文件
+   * When：预览动作请求将一个切片另存为
+   * Then：module 将 Blob 写入用户选择的文件并返回 saved
+   * 防回归：预览另存为不能误走传统下载或丢失原始文件名
+   */
+  it('将单个切片写入用户在另存为对话框中选择的文件', async () => {
+    const write = vi.fn()
+    const close = vi.fn()
+    const savePicker = vi.fn(async () => ({ createWritable: async () => ({ write, close }) }))
+    const exporter = useDirectoryExport({ showSaveFilePicker: savePicker, storage: memoryStorage() })
+    const blob = new Blob(['tile'], { type: 'image/png' })
+
+    await expect(exporter.saveFileAs({ name: 'tile.png', blob })).resolves.toBe('saved')
+
+    expect(savePicker).toHaveBeenCalledWith(expect.objectContaining({ suggestedName: 'tile.png' }))
+    expect(write).toHaveBeenCalledWith(blob)
+    expect(close).toHaveBeenCalledOnce()
+  })
+
+  /**
+   * Given：用户在另存为系统对话框中取消操作
+   * When：预览动作等待文件句柄
+   * Then：module 返回 cancelled 而不触发任何替代下载
+   * 防回归：取消另存为不得在用户无感知时创建浏览器下载
+   */
+  it('将另存为取消转换为显式 cancelled 结果', async () => {
+    const savePicker = vi.fn(async () => { throw new DOMException('cancelled', 'AbortError') })
+    const exporter = useDirectoryExport({ showSaveFilePicker: savePicker, storage: memoryStorage() })
+
+    await expect(exporter.saveFileAs({ name: 'tile.png', blob: new Blob(['tile']) })).resolves.toBe('cancelled')
+  })
+
+  /**
+   * Given：浏览器没有提供 showSaveFilePicker
+   * When：预览动作请求另存为
+   * Then：module 返回 unsupported 供界面显示替代说明
+   * 防回归：不支持文件选择器时不得抛出未捕获异常
+   */
+  it('在不支持另存为时返回 unsupported', async () => {
+    const exporter = useDirectoryExport({ storage: memoryStorage() })
+
+    await expect(exporter.saveFileAs({ name: 'tile.png', blob: new Blob(['tile']) })).resolves.toBe('unsupported')
+  })
 })

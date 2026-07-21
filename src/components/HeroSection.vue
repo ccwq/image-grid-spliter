@@ -39,17 +39,17 @@ const emit = defineEmits<{
       </h1>
       <p class="subhead">{{ props.tr.meta.description }}</p>
       <div class="actions">
-        <button type="button" :disabled="props.processing" @click="emit('choose-file')">
+        <button class="choose-image" type="button" :disabled="props.processing" @click="emit('choose-file')">
           <Icon :icon="props.icons.imagePlus" class="btn-icon" aria-hidden="true" />
-          {{ props.processing ? props.tr.buttons.processing : props.tr.buttons.chooseImage }}
+          <span>{{ props.processing ? props.tr.buttons.processing : props.tr.buttons.chooseImage }}</span>
         </button>
-        <button class="ghost" type="button" :disabled="!props.hasTiles || props.processing" @click="emit('trigger-downloads')">
+        <button v-if="props.hasTiles" class="ghost hero-icon-action" type="button" :disabled="props.processing" :aria-label="props.tr.buttons.reDownload" :title="props.tr.buttons.reDownload" @click="emit('trigger-downloads')">
           <Icon :icon="props.icons.redo" class="btn-icon" aria-hidden="true" />
-          {{ props.tr.buttons.reDownload }}
+          <span>{{ props.tr.buttons.reDownload }}</span>
         </button>
-        <button class="ghost danger" type="button" :disabled="!props.hasImage && !props.hasTiles" @click.stop="emit('reset')">
+        <button v-if="props.hasImage || props.hasTiles" class="ghost danger hero-icon-action" type="button" :aria-label="props.tr.buttons.clear" :title="props.tr.buttons.clear" @click.stop="emit('reset')">
           <Icon :icon="props.icons.trash" class="btn-icon" aria-hidden="true" />
-          {{ props.tr.buttons.clear }}
+          <span>{{ props.tr.buttons.clear }}</span>
         </button>
       </div>
       <p v-if="!props.isMobile" class="hint">
@@ -92,3 +92,10 @@ const emit = defineEmits<{
     </div>
   </header>
 </template>
+
+<style scoped>
+@media (max-width: 959px) {
+  .hero.compact .hero-icon-action { width:32px; min-width:32px; padding:5px; }
+  .hero.compact .hero-icon-action span { display:none; }
+}
+</style>
