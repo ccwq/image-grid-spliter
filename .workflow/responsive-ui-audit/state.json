@@ -1,0 +1,17 @@
+{
+  "title": "多分辨率 UI 审查与修复",
+  "slug": "responsive-ui-audit",
+  "status": "completed-with-browser-recheck-pending",
+  "maxRounds": 4,
+  "currentRound": 4,
+  "approval": "granted by user request",
+  "packets": [
+    { "id": "R1-layout", "status": "completed" },
+    { "id": "R1-states", "status": "completed" },
+    { "id": "R2-main", "status": "completed" },
+    { "id": "R3-review", "status": "completed" },
+    { "id": "R4-fix", "status": "completed" }
+  ],
+  "verification": ["pnpm test", "pnpm exec vue-tsc --noEmit", "pnpm build", "git diff --check"],
+  "remainingRisk": "CDP endpoint became unavailable before final post-R4 browser matrix."
+}
