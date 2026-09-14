@@ -49,3 +49,53 @@
 - CDP 空态测量：1440 x 900 桌面高度约 936px，390 x 844 移动高度约 943px；当前所有主区块连续纵向堆叠。
 - 已确认桌面采用控制侧栏与结果主区，移动保持单页单列且控制折叠；两个版本都保持高密度紧凑样式。
 - 导出反馈必须覆盖生成、目录保存或传统下载触发，并用同一个 fixed 顶部组件呈现最终报告。
+
+## 剪裁结果缓存调查（2026-09-14）
+
+- 待调查：图片拖入、预览、单图下载、下载全部是否共享同一剪裁结果或各自触发计算。
+- 待调查：有效剪裁参数集合、原图身份稳定性、Blob/Object URL 生命周期和现有 IndexedDB 封装。
+- 初始约束：缓存最多 30 个“同一输入图 + 同一套有效参数”的输出；具体条目粒度、持久化范围和淘汰语义尚待代码事实与用户决策确认。
+- 现有规格已明确：分割线变动应重新生成所有图片切片；导出格式、JPG 质量、padding 单位/数值、是否裁外边缘都会影响输出，不能遗漏在缓存 key 之外。
+- 项目已有 `fileSha256` 入口和基于 IndexedDB 的目录句柄持久化，可作为“输入身份算法”和“存储技术已被项目接受”的线索，但是否适合存放大量 Blob 仍需结合现有实现与容量语义评估。
+- 现有设计把 `useImageSlicer` 定位为 `TileResult` 生成者，把目录写入隔离到 `useDirectoryExport`；缓存 seam 应尽量不让 UI 或目录模块理解 Canvas 细节。
+
+### 已确认的重复计算与生命周期
+
+- 上传完成后 `addFiles()` 会调用一次 `processAll()`，为当前队列的所有图片生成预览结果；追加一张新图也会让旧图片全部重新剪裁。
+- `slicePlan`、导出格式和 JPG 质量由 `App.vue` watcher 触发全量 `processAll(false)`；当前没有配置签名或结果命中判断。
+- “下载全部”走 `triggerDownloads()`，即使页面已经持有同参数下的完整 `TileResult[]`，仍会无条件调用 `processAll(false, true)` 后才写目录或传统下载。
+- 单图下载同样先释放该图当前 tiles，再调用 `splitImage()` 重建完全相同的结果；PhotoSwipe 的单 tile 保存、下载、另存为则直接复用当前 Blob/URL，不重复剪裁。
+- `processAll` 与单图下载共享全局 `state.processing` 锁，可避免并行执行，但后到的重算请求会直接丢弃而非排队；它不是按缓存 key 的 in-flight 去重。
+- `triggerDownloads()` 自身没有可靠消费 `processAll` 的“本次是否完成/是否命中”结果；非 UI 重入时存在生成被锁跳过后继续导出旧 tiles 的窗口。
+- 当前每次重算前会 revoke 旧 `TileResult.previewUrl`，重置时也会清理源图与 tile URL；但组件卸载路径没有显式调用完整清理。
+- 当前测试未覆盖 `useImageSlicer` 的缓存、重入锁、上传去重、下载重算及 Object URL 生命周期；新增缓存测试需补齐这些行为，并遵循中文 GWT 注释规范。
+
+### 缓存身份与存储层调查
+
+- 项目唯一 IndexedDB 实现位于 `useDirectoryExport.ts`，只持久化一个目录句柄；PWA Workbox 仅预缓存应用静态资源，均不是裁切结果缓存。
+- 影响 Blob 的有效参数是：输入图内容身份、规范化后的横/纵分割线、padding、paddingUnit、trimOuterEdges、导出格式，以及 JPG 模式下的质量。文件名只影响输出命名，不影响像素内容。
+- 当前 `ImageItem.id` 已优先使用文件内容 SHA-256；Web Crypto 失败时退化为 `name-lastModified-size`，该弱身份不宜无条件承担跨会话强缓存命中。
+- 合理条目粒度应优先理解为“一张输入图 + 一套有效参数产生的完整 `TileResult[]`”，而不是每个 tile 单独占一个名额；否则 4×4 单图会消耗 16/30 容量且产生残缺结果集。
+- Blob 可以作为缓存载荷；`previewUrl`、随机 `TileResult.id` 和 `HTMLImageElement` 都是会话对象，不能持久化。持久命中后必须从 Blob 重建 URL，并负责淘汰、重置及卸载时回收。
+- 仅内存方案已经足以解决当前明确复现的“拖入生成后，下载全部/单图下载再次剪裁”；跨刷新持久化只有在用户重新导入同一文件时才可能命中，因为应用不会跨会话恢复图片队列。
+- 两级缓存可同时覆盖会话内与跨会话，但会引入 IDB schema 升级、Blob quota、异步恢复、算法版本、弱 hash 误命中及双层生命周期一致性，复杂度明显高于当前问题。
+- 缓存适合独立成 deep module：外部 Interface 只表达按输入身份与有效参数获取/生成完整结果集；Implementation 隐藏 key 规范化、in-flight 合并、LRU 30、Blob 保存和 URL materialization。目录导出 module 不应承担此职责。
+
+### 已确认决策
+
+- 缓存生命周期选择“仅内存”：目标是消除当前页面会话内上传预览、参数往返、单图下载和下载全部的重复剪裁，不支持刷新后重新导入同图的命中。
+- 容量单位选择“完整结果集”：一张输入图在一套有效参数下生成的全部 tiles 共同占 1 个 LRU 条目，容量上限为 30 条；不允许按单 tile 淘汰形成残缺命中。
+- 内存预算采用双上限：最多 30 条且缓存 Blob 总量最多 256 MiB，任一超限即从最久未使用条目开始淘汰；单条自身超过 256 MiB 时可供当前 UI/导出使用，但不进入缓存。
+- “重置”语义选择同时清除缓存：清空队列、回收全部 Object URL、释放所有缓存 Blob；不增加独立缓存管理 UI。
+
+### 拟定的工程设计
+
+- 缓存条目只持有 Blob 与稳定元数据（row、col、width、height），不持有 `previewUrl`、随机 tile id 或文件名；当前 UI 的 `ImageItem.tiles` 继续拥有会话 URL。这样 LRU 淘汰缓存不会破坏仍在展示或下载的图片。
+- 每个 `ImageItem` 记录当前 materialized 结果的 key；若其 tiles 已对应当前 key，则下载全部与单图下载直接复用，连 URL 都不重建。只有 key 变化才回收旧 URL并替换结果。
+- key 应基于：缓存算法版本、输入 `ImageItem.id`、实际计算出的规范化 tile rects、导出格式、仅 JPG 生效的质量。以 rects 而不是原始 `SlicePlan` 作为几何签名，可让无效/重复分割线等有效结果相同的配置命中同一条目。
+- 剪裁调用必须先快照当前格式、质量和矩形，再传给生成函数；生成过程不得逐 tile 读取响应式设置，避免一次批处理中混入不同参数。
+- LRU 命中提升最近使用时间；插入/替换后同时按 30 条和 256 MiB 淘汰。Blob 字节数用各 tile `blob.size` 求和。
+- 并发层应按 key 合并 in-flight Promise；相同 key 同时请求只执行一次 producer。取消或部分生成不得写入缓存，失败 Promise 必须从 in-flight 表删除以允许重试。
+- `processAll` 不应再在开始时清空所有 tiles；应逐图执行 `current key → cache → generate` 的 ensure 流程。追加新图时旧图命中，只生成新增图；下载入口使用同一 ensure 流程。
+- `resetApp` 和组件卸载均应回收 UI Object URL 并 `cache.clear()`；普通 LRU 淘汰只释放缓存 Blob 引用，不碰 UI URL。
+- 缓存命中属于生成阶段已完成：进度可按该结果集的 tile 数立即推进；全命中时不应制造耗时生成假象，随后直接进入保存/传统下载阶段。

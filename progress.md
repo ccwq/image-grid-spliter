@@ -39,3 +39,28 @@
 - 修复有图态上传区仍占满右侧主区的问题：仅空态保留桌面最小高度；有图时 `UploadPanel` 收缩为继续添加、队列、文件名和尺寸的紧凑栏。
 - 修改后 CDP：1264px 桌面上传栏高 149.6px，结果区从 y=337.6 开始；390px 移动上传栏高 156px，结果从 y=326 开始。复审 agent ACCEPT，确认无横向溢出、长文件名截断且主要上传/下载/预览入口保持可用。
 - 删除 `SliceEditor` 内重复的边线擦除、单位和外边缘控制，仅保留分割线编辑；`GridPresetsPanel` 成为唯一边线擦除入口，并在 PC 与移动端统一使用两列两行紧凑布局。CDP 指定 tab 复查通过，`pnpm build` 与 OpenSpec 严格校验通过。
+
+## 2026-09-14
+
+- 开始调查剪裁结果缓存：目标容量 30，重点验证拖入预览与下载全部之间的重复计算、缓存身份及内存/IndexedDB 取舍。
+- 已初始化并校验项目自记忆；当前无相关已加载记录。
+- 已建立渐进式 Grilling 设计树，先完成可由代码确认的事实调查，再向用户询问真正需要取舍的产品决策。
+- 已还原剪裁主链：上传、参数 watcher、单图下载和下载全部都存在不同程度的重复生成；PhotoSwipe 单 tile 操作已经复用 Blob。
+- 已确认当前全局 `processing` 只做互斥，不提供按 key 命中或 in-flight 合并，且会丢弃处理期间到达的重算请求。
+- Grilling 第 1 个决策已确认：采用仅内存缓存，不为刷新后重新导入同图提供 IndexedDB 命中。
+- Grilling 第 2 个决策已确认：LRU 的 1 个条目是一张原图与一套有效参数的完整切片结果集，容量 30。
+- Grilling 第 3 个决策已确认：增加 256 MiB Blob 总字节预算；缓存同时受条目数与字节数约束。
+- Grilling 第 4 个决策已确认：用户重置时同步清除全部内存缓存和 Object URL，不增加独立清理入口。
+- 已完成设计树调查与用户取舍；正在汇总 module seam、key、URL 所有权、in-flight 合并及接入调用链，等待用户确认共同理解后才进入实施。
+- Workflow A 已直接在主工作区新增独立 OpenSpec change `cache-slice-results-and-persist-settings`，经对抗审查修复恢复 watcher 竞争、latest-wins 重入、原子 URL 换装、矩形取整一致性等问题。
+- 人工复核后 `openspec validate cache-slice-results-and-persist-settings --strict` 通过，`git diff --check` 对新 change 无错误；现停在 OpenSpec 实施审批门。
+- 用户已批准 `cache-slice-results-and-persist-settings`，准备启动 Workflow B；所有 writer 直接在当前主工作区顺序修改，不使用 worktree。
+- 用户授权在 Workflow B、修复和最终验证全部完成后执行 `/git-up -pcP`，自动规划提交、commit 并 push；若验证或 commit 未成功则禁止 push。
+
+## 2026-09-15
+
+- Workflow B 已直接在主工作区完成缓存 deep module、完整设置持久化、统一 ensure/原子换装/latest-wins、App 与 PhotoSwipe 生命周期接线；对抗审查发现的 7 个问题均由单一 writer 修复。
+- 最终验证通过：`pnpm test`（12 files / 114 tests）、`pnpm exec vue-tsc --noEmit`、`pnpm build`、`openspec validate cache-slice-results-and-persist-settings --strict`、`git diff --check`。
+- CDP 浏览器 QA 通过上传、缓存复用、A→B→A、追加图片、完整配置刷新恢复、重置保留配置、PhotoSwipe、移动/桌面布局及传统下载降级；截图位于 `%TEMP%\\agent-browser-captures\\01-12*.png`。
+- 真实系统目录选择器无法由自动化安全取消，未执行原生弹窗落盘；已验证源码中目录授权先于缓存/生成 await，且无目录时传统下载降级正常。
+- 准备按用户授权执行 `/git-up -pcP`，完成分批提交后自动 push。
