@@ -13,9 +13,11 @@ interface Props {
   icons: Record<string, unknown>
   collapsed: boolean
   pendingTraditionalDownloads: { written: number; pending: number } | null
+  /** PC 端传 false：导出动作与重试移至浮动导出栏和常驻导出报告，头部保持纯结果呈现。移动端默认 true，保持既有内联行为。 */
+  showInlineDownloadControls?: boolean
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), { showInlineDownloadControls: true })
 const emit = defineEmits<{
   (e: 'trigger-downloads'): void
   (e: 'toggle-auto-download', value: boolean): void
@@ -33,10 +35,10 @@ const emit = defineEmits<{
         <p class="eyebrow">{{ props.tr.results.result }}</p>
         <h3>{{ props.tilesHeading }}</h3>
         <p class="muted">{{ props.resultsSummary }}</p>
-        <p class="muted">{{ props.tr.results.queueSummary(props.images.length) }}</p>
+        <p v-if="props.showInlineDownloadControls" class="muted">{{ props.tr.results.queueSummary(props.images.length) }}</p>
         <button class="link-btn result-collapse" type="button" :aria-label="props.collapsed ? props.tr.buttons.expandResults : props.tr.buttons.collapseResults" :title="props.collapsed ? props.tr.buttons.expandResults : props.tr.buttons.collapseResults" @click="emit('toggle-collapsed')"><Icon :icon="props.collapsed ? props.icons.chevronDown : props.icons.chevronUp" class="btn-icon" aria-hidden="true" /><span>{{ props.collapsed ? props.tr.buttons.expandResults : props.tr.buttons.collapseResults }}</span></button>
       </div>
-      <div class="results-actions">
+      <div v-if="props.showInlineDownloadControls" class="results-actions">
         <label class="auto-toggle">
           <input
             type="checkbox"

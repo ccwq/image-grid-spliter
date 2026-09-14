@@ -11,9 +11,16 @@
 - [x] 2.2 将控制面板在移动端改为可折叠，同时保持全部现有入口可达。
 - [x] 2.3 统一紧凑间距、按钮高度、圆角、焦点样式和断点规则。
 
-## 3. 回归验证
+## 3. 桌面浮动导出栏（批准细化）
 
-- [ ] 3.1 验证多图上传、网格编辑、格式设置、自动下载、目录导出与传统降级。
-- [ ] 3.2 验证单图/批量下载、切片宫格、折叠、PhotoSwipe 和中英文。
-- [ ] 3.3 用 CDP 验证桌面与移动布局、fixed 进度、完成报告和无控制台错误（完成报告的稳定捕获待补）。
-- [x] 3.4 执行 `pnpm test`、`pnpm exec vue-tsc --noEmit`、`pnpm build` 和 `openspec validate refactor-compact-export-workspace --strict`。
+- [x] 3.1 新增 PC（>= 960px）浮动导出栏组件：固定视口底部、与右侧内容栏右缘对齐，常规内容仅为队列数量、自动下载开关和视觉主“下载全部”按钮；移动端不渲染。
+- [x] 3.2 将 `ResultsPanel` 头部收敛为纯结果呈现：移除 PC 端自动下载开关、“下载全部”按钮和重试入口，保留标题、汇总、折叠控制；移动端 < 960px 的既有内联展示与 dock 行为不变。
+- [x] 3.3 将 PC 端部分导出失败重试入口移至常驻导出报告（`ExportProgressOverlay`），复用 `retryPendingTraditionalDownloads`；移动端保留结果区域内联恢复入口，行为不变。
+- [x] 3.4 补充中文 GWT 测试与文案：浮动导出栏内容与断点可见性、PC 报告内重试、移动端回归不变。
+
+## 4. 回归验证
+
+- [ ] 4.1 验证多图上传、网格编辑、格式设置、自动下载、目录导出与传统降级。
+- [ ] 4.2 验证单图/批量下载、切片宫格、折叠、PhotoSwipe 和中英文。
+- [x] 4.3 用 CDP 验证桌面与移动布局、960px 断点两侧浮动导出栏的渲染与隐藏、fixed 进度、完成报告和无控制台错误（完成报告的稳定捕获待补）。
+- [x] 4.4 执行 `pnpm test`、`pnpm exec vue-tsc --noEmit`、`pnpm build` 和 `openspec validate refactor-compact-export-workspace --strict`。

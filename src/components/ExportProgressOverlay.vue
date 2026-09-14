@@ -3,7 +3,7 @@ import type { ExportProgress } from '../composables/useImageSlicer'
 import type { LocaleMessages } from '../composables/useLocale'
 
 const props = defineProps<{ progress: ExportProgress; tr: LocaleMessages; cancellable?: boolean }>()
-const emit = defineEmits<{ (e: 'dismiss'): void; (e: 'cancel'): void }>()
+const emit = defineEmits<{ (e: 'dismiss'): void; (e: 'cancel'): void; (e: 'retry-pending-downloads'): void }>()
 
 const labelFor = () => {
   const { phase, current, total, report } = props.progress
@@ -17,6 +17,9 @@ const labelFor = () => {
 }
 
 const percent = () => props.progress.total ? Math.min(100, Math.round((props.progress.current / props.progress.total) * 100)) : 0
+// PC 端部分失败重试入口常驻于报告内。仅目录直写部分失败（pending > 0）时显示：
+// 该条件与 pendingTraditionalDownloads 非空严格对应，生成中断报告（mode=generation）无待重试项，避免无效按钮。
+const canRetryPending = () => props.progress.phase === 'report' && props.progress.report?.mode === 'directory' && props.progress.report.pending > 0
 </script>
 
 <template>
@@ -29,9 +32,12 @@ const percent = () => props.progress.total ? Math.min(100, Math.round((props.pro
       <span :style="{ width: `${percent()}%` }" />
     </div>
     <div class="progress-actions"><button v-if="props.cancellable && props.progress.phase === 'generating'" class="progress-cancel" type="button" @click="emit('cancel')">{{ props.tr.progress.cancel }}</button><button class="progress-close" type="button" :aria-label="props.tr.progress.close" @click="emit('dismiss')">×</button></div>
+    <div v-if="canRetryPending()" class="progress-retry">
+      <button class="progress-retry-btn" type="button" @click="emit('retry-pending-downloads')">{{ props.tr.results.retryTraditionalDownload }}</button>
+    </div>
   </aside>
 </template>
 
 <style scoped>
-.export-progress{position:fixed;top:10px;left:50%;z-index:30;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px 12px;width:min(560px,calc(100vw - 24px));padding:9px 10px 8px 12px;border:1px solid rgb(143 215 202 / .42);border-radius:10px;background:#11242b;color:#e7fbf6;box-shadow:0 10px 28px rgb(0 0 0 / .28);transform:translateX(-50%)}.progress-copy{display:flex;min-width:0;align-items:center;gap:8px;font-size:12px}.progress-copy strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.progress-count{margin-left:auto;color:#8fd7ca;font-variant-numeric:tabular-nums}.progress-meter{grid-column:1/-1;height:3px;overflow:hidden;border-radius:999px;background:rgb(203 239 231 / .15)}.progress-meter span{display:block;height:100%;border-radius:inherit;background:#47d7ba;transition:width .16s ease}.progress-actions{grid-column:2;grid-row:1;display:flex;gap:4px}.progress-close,.progress-cancel{height:22px;padding:0;border:0;border-radius:6px;background:transparent;color:#a9c1be;cursor:pointer}.progress-close{width:22px;font-size:18px;line-height:1}.progress-cancel{padding:0 6px;font-size:11px}.progress-close:hover,.progress-close:focus-visible,.progress-cancel:hover,.progress-cancel:focus-visible{background:rgb(143 215 202 / .13);color:#e7fbf6}.export-progress.report{border-color:rgb(143 215 202 / .28)}.export-progress.attention{border-color:rgb(255 183 172 / .58)}.export-progress.attention .progress-copy strong{color:#ffd1ca}@media(prefers-reduced-motion:reduce){.progress-meter span{transition:none}}@media(max-width:640px){.export-progress{top:6px;width:calc(100vw - 16px);padding:8px 8px 7px 10px}.progress-copy{font-size:11px}}
+.export-progress{position:fixed;top:10px;left:50%;z-index:30;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px 12px;width:min(560px,calc(100vw - 24px));padding:9px 10px 8px 12px;border:1px solid rgb(143 215 202 / .42);border-radius:10px;background:#11242b;color:#e7fbf6;box-shadow:0 10px 28px rgb(0 0 0 / .28);transform:translateX(-50%)}.progress-copy{display:flex;min-width:0;align-items:center;gap:8px;font-size:12px}.progress-copy strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.progress-count{margin-left:auto;color:#8fd7ca;font-variant-numeric:tabular-nums}.progress-meter{grid-column:1/-1;height:3px;overflow:hidden;border-radius:999px;background:rgb(203 239 231 / .15)}.progress-meter span{display:block;height:100%;border-radius:inherit;background:#47d7ba;transition:width .16s ease}.progress-actions{grid-column:2;grid-row:1;display:flex;gap:4px}.progress-close,.progress-cancel{height:22px;padding:0;border:0;border-radius:6px;background:transparent;color:#a9c1be;cursor:pointer}.progress-close{width:22px;font-size:18px;line-height:1}.progress-cancel{padding:0 6px;font-size:11px}.progress-close:hover,.progress-close:focus-visible,.progress-cancel:hover,.progress-cancel:focus-visible{background:rgb(143 215 202 / .13);color:#e7fbf6}.export-progress.report{border-color:rgb(143 215 202 / .28)}.export-progress.attention{border-color:rgb(255 183 172 / .58)}.export-progress.attention .progress-copy strong{color:#ffd1ca}.progress-retry{grid-column:1/-1;display:flex;justify-content:flex-start;padding-top:2px;border-top:1px solid rgb(203 239 231 / .12)}.progress-retry-btn{min-height:26px;border-color:#47d7ba;background:transparent;color:#47d7ba;font-size:11px;font-weight:700}.progress-retry-btn:hover,.progress-retry-btn:focus-visible{background:rgb(71 215 186 / .14);color:#baffef}@media(prefers-reduced-motion:reduce){.progress-meter span{transition:none}}@media(max-width:640px){.export-progress{top:6px;width:calc(100vw - 16px);padding:8px 8px 7px 10px}.progress-copy{font-size:11px}}
 </style>
