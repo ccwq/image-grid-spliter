@@ -69,7 +69,7 @@ type Translations = Record<
       resultsSummary: (grid: string, base: string, fmt: string, quality: string, isJpg: boolean) => string
       resultsSummaryMulti: (grid: string, fmt: string, count: number, isJpg: boolean, quality: string) => string
     }
-    aria: { github: string; language: string }
+    aria: { github: string; language: string; themeToggle: string }
   }
 >
 
@@ -206,6 +206,7 @@ const translations: Translations = {
     aria: {
       github: '前往 GitHub 仓库',
       language: '切换语言',
+      themeToggle: '切换亮暗主题',
     },
   },
   en: {
@@ -338,6 +339,7 @@ const translations: Translations = {
     aria: {
       github: 'Open GitHub repo',
       language: 'Switch language',
+      themeToggle: 'Toggle light/dark theme',
     },
   },
 }

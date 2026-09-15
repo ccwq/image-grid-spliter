@@ -115,9 +115,9 @@ function importClipboard() {
 <style scoped>
 .save-form, .clipboard-import { display: grid; gap: .5rem; margin-top: 1rem; } .form-row, .transfer-tools, .preset-actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
 .form-row input { flex: 1 1 13rem; } .preset-list { list-style: none; margin: 1rem 0; padding: 0; display: grid; gap: .65rem; }
-.preset-list li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; padding: .75rem; border: 1px solid var(--border-color, #d0d5dd); border-radius: .65rem; }
-.preset-list li.selected { border-color: #2563eb; box-shadow: 0 0 0 1px #2563eb; } small { display: block; margin-top: .25rem; color: #667085; }
-.empty { color: #667085; } .file-input { display: inline-flex; align-items: center; cursor: pointer; } .file-input input { position: absolute; inline-size: 1px; block-size: 1px; opacity: 0; }
-.file-input.disabled { opacity: .5; cursor: not-allowed; } .danger { color: #b42318; } textarea { width: 100%; resize: vertical; }
+.preset-list li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; padding: .75rem; border: 1px solid var(--border-color, var(--color-border)); border-radius: .65rem; }
+.preset-list li.selected { border-color: var(--color-accent); box-shadow: 0 0 0 1px var(--color-accent); } small { display: block; margin-top: .25rem; color: var(--color-text-muted); }
+.empty { color: var(--color-text-muted); } .file-input { display: inline-flex; align-items: center; cursor: pointer; } .file-input input { position: absolute; inline-size: 1px; block-size: 1px; opacity: 0; }
+.file-input.disabled { opacity: .5; cursor: not-allowed; } .danger { color: var(--color-danger); } textarea { width: 100%; resize: vertical; }
 @media (max-width: 540px) { .preset-actions { width: 100%; } .preset-actions > button { flex: 1 1 28%; } }
 </style>

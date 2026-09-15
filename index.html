@@ -9,6 +9,39 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Image Grid Spliter</title>
+    <script>
+      // 预启动主题引导：必须与 src/composables/useColorScheme.ts 的键名、取值、
+      // 解析规则和 theme-color 色值完全一致（兼容红线），否则会出现相反主题首帧闪烁。
+      // 只持久化用户显式选择（'light' | 'dark'）；未选择时跟随系统外观；探测失败回退深色。
+      (function () {
+        var STORAGE_KEY = 'igs:color-scheme'
+        var THEME_COLOR = { light: '#f3f7f6', dark: '#0f1a20' }
+        var scheme = null
+        try {
+          var saved = window.localStorage.getItem(STORAGE_KEY)
+          if (saved === 'light' || saved === 'dark') scheme = saved
+        } catch (e) { /* 存储不可用（隐私模式等）：按首次访问处理 */ }
+        if (!scheme) {
+          try {
+            scheme = typeof window.matchMedia === 'function'
+              ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+              : 'dark'
+          } catch (e) { scheme = 'dark' }
+        }
+        try {
+          var root = document.documentElement
+          root.setAttribute('data-color-scheme', scheme)
+          root.style.colorScheme = scheme
+          var meta = document.querySelector('meta[name="theme-color"]')
+          if (meta) meta.setAttribute('content', THEME_COLOR[scheme])
+        } catch (e) { /* DOM 异常静默降级 */ }
+      })()
+    </script>
+    <style>
+      /* 首帧关键底色：避免 style.css 加载前以相反主题底色闪现（light 覆盖默认深色）。 */
+      html { background-color: #0f1a20; }
+      html[data-color-scheme='light'] { background-color: #f3f7f6; }
+    </style>
   </head>
   <body>
     <div id="app"></div>

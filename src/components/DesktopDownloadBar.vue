@@ -51,13 +51,13 @@ const emit = defineEmits<{
    若调整 .page / .workspace 的断点几何，需同步更新 30px / 478px / 1200px 三个常量。 */
 .desktop-download-bar { position: fixed; inset: auto 0 0 0; z-index: 35; display: none; padding: 0; pointer-events: none; }
 .download-bar-aligner { max-width: 1200px; margin: 0 auto; padding: 0 30px 14px 478px; }
-.download-bar-row { display: flex; align-items: center; gap: 12px; padding: 9px 10px 9px 12px; border: 1px solid rgb(143 215 202 / .42); border-radius: 12px; background: #152129; box-shadow: 0 12px 28px rgb(0 0 0 / .3); pointer-events: auto; }
-.download-bar-queue { flex: 1; min-width: 0; margin: 0; overflow: hidden; color: #a9c1be; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
-.download-bar-auto { display: inline-flex; flex-shrink: 0; align-items: center; gap: 6px; color: #dff4ee; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.download-bar-row { display: flex; align-items: center; gap: 12px; padding: 9px 10px 9px 12px; border: 1px solid var(--color-border-strong); border-radius: 12px; background: var(--color-surface); box-shadow: 0 12px 28px var(--color-shadow); pointer-events: auto; }
+.download-bar-queue { flex: 1; min-width: 0; margin: 0; overflow: hidden; color: var(--color-text-muted); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
+.download-bar-auto { display: inline-flex; flex-shrink: 0; align-items: center; gap: 6px; color: var(--color-text-strong); font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
 .download-bar-auto input { width: 15px; height: 15px; margin: 0; }
-.download-bar-all { min-height: 40px; padding: 8px 16px; border-color: #47d7ba; background: #47d7ba; color: #09201f; font-size: 13px; font-weight: 800; }
-.download-bar-all:hover { border-color: #5fe3c9; background: #5fe3c9; color: #09201f; }
-.download-bar-all:disabled { border-color: rgb(203 239 231 / .18); background: #25343a; color: #7e9693; }
+.download-bar-all { min-height: 40px; padding: 8px 16px; border-color: var(--color-accent); background: var(--color-accent); color: var(--color-on-accent); font-size: 13px; font-weight: 800; }
+.download-bar-all:hover { border-color: var(--color-accent-hover); background: var(--color-accent-hover); color: var(--color-on-accent); }
+.download-bar-all:disabled { border-color: var(--color-border-strong); background: var(--color-disabled-bg); color: var(--color-disabled-text); }
 /* 仅 PC 渲染：< 960px 一律隐藏，App.vue 侧另有 v-if=!isMobile 双重门控。 */
 @media (min-width: 960px) { .desktop-download-bar { display: block; } }
 </style>
