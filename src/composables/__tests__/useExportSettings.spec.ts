@@ -17,16 +17,16 @@ describe('useExportSettings', () => {
   /**
    * Given：localStorage 为空且无既有键
    * When：创建 useExportSettings 组合函数
-   * Then：格式默认 jpg、质量默认 80%，派生值（isJpgFormat/qualityLabel）与默认一致
+   * Then：格式默认 jpg、质量默认 95%，派生值（isJpgFormat/qualityLabel）与默认一致
    * 防回归：默认值漂移会让旧用户升级后导出参数悄悄变化
    */
   it('无既有键时以默认值初始化', () => {
     const settings = useExportSettings({ storage: createStorage() })
     expect(settings.exportFormat.value).toBe('jpg')
-    expect(settings.jpgQualityPercent.value).toBe(80)
+    expect(settings.jpgQualityPercent.value).toBe(95)
     expect(settings.isJpgFormat.value).toBe(true)
-    expect(settings.qualityLabel.value).toBe('80%')
-    expect(settings.jpgQuality.value).toBeCloseTo(0.8)
+    expect(settings.qualityLabel.value).toBe('95%')
+    expect(settings.jpgQuality.value).toBeCloseTo(0.95)
   })
 
   /**
@@ -66,7 +66,7 @@ describe('useExportSettings', () => {
   /**
    * Given：质量键被外部改写为越界或非数值（"500"、"abc"）
    * When：新建组合函数水合
-   * Then：非法值被钳制或丢弃（500→100、abc→默认 80），合法格式键不受影响
+   * Then：非法值被钳制或丢弃（500→100、abc→默认 95），合法格式键不受影响
    * 防回归：越界质量曾直接写入 canvas toBlob 导致导出异常
    */
   it('质量越界钳制、非法丢弃且逐键独立处理', () => {
@@ -78,7 +78,7 @@ describe('useExportSettings', () => {
 
     storage.setItem('igs:jpg-quality', 'abc')
     const discarded = useExportSettings({ storage })
-    expect(discarded.jpgQualityPercent.value).toBe(80)
+    expect(discarded.jpgQualityPercent.value).toBe(95)
     expect(discarded.exportFormat.value).toBe('jpg')
   })
 
@@ -94,7 +94,7 @@ describe('useExportSettings', () => {
     storage.setItem = vi.fn(() => { throw new Error('blocked') })
     const settings = useExportSettings({ storage })
     expect(settings.exportFormat.value).toBe('jpg')
-    expect(settings.jpgQualityPercent.value).toBe(80)
+    expect(settings.jpgQualityPercent.value).toBe(95)
     expect(settings.updateExportFormat('png')).toBe(true)
     expect(settings.exportFormat.value).toBe('png')
     expect(settings.updateJpgQuality(60)).toBe(true)

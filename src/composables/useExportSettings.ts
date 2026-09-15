@@ -15,7 +15,7 @@ const STORAGE_KEYS = {
 } as const
 
 const DEFAULT_EXPORT_FORMAT: ExportFormat = 'jpg'
-const DEFAULT_JPG_QUALITY = 80
+const DEFAULT_JPG_QUALITY = 95
 
 /** 将任意输入收敛为 1-100 的整数百分比；非法输入返回 null（由调用方决定保留现值）。 */
 export const sanitizeQuality = (value: unknown): number | null => {
