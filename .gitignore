@@ -25,3 +25,8 @@ dev-dist
 *.sln
 *.sw?
 .history
+
+
+/*.pid
+/*.port
+/*.stream
