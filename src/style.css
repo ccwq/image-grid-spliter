@@ -98,15 +98,15 @@ html, body, #app { min-height: 100dvh; }
 a { color: inherit; text-decoration: none; }
 #app { max-width: 1200px; margin: 0 auto; padding: max(18px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); }
 
-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; border: 1px solid var(--color-input-border); border-radius: 8px; padding: 5px 9px; font-size: 13px; line-height: 1.2; font-weight: 600; color: var(--color-text-strong); background: var(--color-surface-raised); box-shadow: none; cursor: pointer; transition: transform .12s ease, border-color .12s ease, background-color .12s ease, opacity .12s ease; }
+button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 28px; border: 1px solid var(--color-input-border); border-radius: 7px; padding: 3px 8px; font-size: 12px; line-height: 1.15; font-weight: 600; color: var(--color-text-strong); background: var(--color-surface-raised); box-shadow: none; cursor: pointer; transition: transform .12s ease, border-color .12s ease, background-color .12s ease, opacity .12s ease; }
 button:hover { transform: translateY(-1px); border-color: var(--color-accent-hover); background: var(--color-surface-hover); }
 button:active:not(:disabled) { transform: translateY(0) scale(.98); }
 button:disabled { opacity: .6; cursor: not-allowed; transform: none; box-shadow: none; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; box-shadow: 0 0 0 3px var(--color-focus-ring); }
-.btn-icon { width: 16px; height: 16px; color: currentColor; flex-shrink: 0; }
+.btn-icon { width: 14px; height: 14px; color: currentColor; flex-shrink: 0; }
 input, select, textarea { font-family: inherit; }
-input[type='number'], input[type='text'], textarea, select { min-height: 32px; padding: 5px 8px; border: 1px solid var(--color-input-border); border-radius: 8px; background: var(--color-input-bg); color: var(--color-text-strong); outline: none; transition: border-color .12s ease, box-shadow .12s ease, background-color .12s ease; }
-input[type='number'] { width: 72px; }
+input[type='number'], input[type='text'], textarea, select { min-height: 28px; padding: 3px 7px; border: 1px solid var(--color-input-border); border-radius: 7px; background: var(--color-input-bg); color: var(--color-text-strong); outline: none; transition: border-color .12s ease, box-shadow .12s ease, background-color .12s ease; }
+input[type='number'] { width: 64px; }
 input[type='number']:hover, input[type='text']:hover, textarea:hover, select:hover { border-color: var(--color-accent); }
 input[type='number']:focus-visible, input[type='text']:focus-visible, textarea:focus-visible, select:focus-visible { border-color: var(--color-focus); }
 input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color: var(--color-accent); }
@@ -124,4 +124,4 @@ select option { background-color: var(--color-bg); color: var(--color-text); }
 .pswp__preview-feedback[data-tone='error'] { border-color: var(--color-danger-border); color: var(--color-danger-strong); }
 @keyframes pswp-save-pulse { 50% { transform: scale(.96); } }
 
-@media (max-width: 768px) { body { font-size: 13px; } #app { padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); } button { min-height: 32px; padding: 5px 8px; } }
+@media (max-width: 768px) { body { font-size: 13px; } #app { padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); } }

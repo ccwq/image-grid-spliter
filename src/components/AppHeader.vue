@@ -56,17 +56,17 @@ const onLocaleChange = (event: Event) => {
         <span class="brand-version">v{{ props.appVersion }}</span>
       </div>
     </div>
-    <p class="status-summary">
-      <span class="summary-item">{{ props.tr.stats.currentGrid }} {{ props.gridDescription }}</span>
+    <p class="status-summary" :aria-label="`${props.tr.stats.currentGrid} ${props.gridDescription}，${props.tr.stats.tileCount} ${props.tileCount}，${props.tr.stats.imageSize} ${props.imageInfo}，${props.tr.stats.exportFormat} ${props.exportFormat.toUpperCase()}，${props.tr.stats.downloadStatus} ${props.statusText}`">
+      <span class="summary-item" :title="`${props.tr.stats.currentGrid} ${props.gridDescription}`">{{ props.gridDescription }}</span>
       <span class="summary-sep" aria-hidden="true">·</span>
-      <span class="summary-item">{{ props.tr.stats.tileCount }} {{ props.tileCount }}</span>
+      <span class="summary-item" :title="`${props.tr.stats.tileCount} ${props.tileCount}`">{{ props.tileCount }} {{ props.tr.stats.tileCount === '切片数量' ? '片' : 'tiles' }}</span>
       <span class="summary-sep" aria-hidden="true">·</span>
-      <span class="summary-item">{{ props.tr.stats.imageSize }} {{ props.imageInfo }}</span>
+      <span class="summary-item summary-item-image" :title="`${props.tr.stats.imageSize} ${props.imageInfo}`">{{ props.imageInfo }}</span>
       <span class="summary-sep" aria-hidden="true">·</span>
-      <span class="summary-item">{{ props.tr.stats.exportFormat }} {{ props.exportFormat.toUpperCase() }}<template v-if="props.isJpgFormat"> · {{ props.qualityLabel }}</template></span>
+      <span class="summary-item" :title="`${props.tr.stats.exportFormat} ${props.exportFormat.toUpperCase()}${props.isJpgFormat ? ` · ${props.qualityLabel}` : ''}`">{{ props.exportFormat.toUpperCase() }}<template v-if="props.isJpgFormat"> · {{ props.qualityLabel }}</template></span>
       <span class="summary-sep" aria-hidden="true">·</span>
       <!-- 仅瞬时状态文案对外可感知更新：静态信息对读屏用户属于噪音。 -->
-      <span class="summary-item" aria-live="polite">{{ props.tr.stats.downloadStatus }} {{ props.statusText }}</span>
+      <span class="summary-item summary-item-status" aria-live="polite" :title="`${props.tr.stats.downloadStatus} ${props.statusText}`">{{ props.statusText }}</span>
     </p>
     <div class="header-actions">
       <button v-if="props.hasTiles" class="ghost header-action" type="button" :aria-label="props.tr.buttons.reDownload" :title="props.tr.buttons.reDownload" @click="emit('trigger-downloads')">
@@ -102,32 +102,55 @@ const onLocaleChange = (event: Event) => {
 </template>
 
 <style scoped>
-/* 单行紧凑头部：桌面端 品牌 | 状态摘要 | 操作 三段一行；<960px 状态摘要独占第二行。 */
-.app-header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px 12px; padding: 10px 12px; border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-surface); }
+/* 单行紧凑头部：品牌 | 短状态摘要 | 操作始终保持在同一行。 */
+/* 单行紧凑头部：品牌、状态摘要与操作始终保持同一行。 */
+.app-header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 6px 10px; min-width: 0; min-height: 44px; padding: 5px 10px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); }
 .brand, .header-actions, .lang-switcher { display: flex; align-items: center; }
-.brand { min-width: 0; gap: 10px; }
-.header-actions { justify-self: end; gap: 8px; }
-.lang-switcher { gap: 6px; padding: 5px 8px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface-raised); }
-.logo-mark { display: grid; width: 36px; height: 36px; flex: 0 0 auto; place-items: center; overflow: hidden; border-radius: 10px; }
-.logo-mark img { width: 28px; height: 28px; }
-.brand-text { display: grid; min-width: 0; gap: 2px; }
-.brand-title { overflow: hidden; font-size: 14px; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
-.brand-version { color: var(--color-text-subtle); font-size: 11px; }
-.lang-icon { width: 15px; height: 15px; color: var(--color-accent); }
-.lang-switcher select { max-width: 92px; padding: 3px; border: 0; background: transparent; color: var(--color-text-strong); }
-.icon-button { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid var(--color-border); border-radius: 10px; color: var(--color-text-strong); }
-.icon-button svg { width: 17px; height: 17px; }
-.theme-icon { width: 17px; height: 17px; }
-/* 纯文本状态摘要：标签和值保持可读间距，可在窄屏自然换行。 */
-.status-summary { display: flex; min-width: 0; justify-self: stretch; flex-wrap: wrap; align-items: center; gap: 2px 6px; margin: 0; color: var(--color-text-muted); font-size: 12px; line-height: 1.35; }
-.summary-item { min-width: 0; }
-.summary-item:last-child { color: var(--color-text-strong); font-weight: 650; }
+.brand { min-width: 0; gap: 8px; }
+.header-actions { justify-self: end; gap: 6px; }
+.header-actions > * { align-self: center; flex: 0 0 auto; }
+.lang-switcher { gap: 4px; height: 28px; padding: 0 6px; border-radius: 7px; }
+.logo-mark { display: grid; flex: 0 0 28px; width: 28px; height: 28px; place-items: center; border-radius: 7px; line-height: 0; }
+.logo-mark img { display: block; width: 22px; height: 22px; }
+.brand { gap: 7px; }
+.brand-title { font-size: 12px; }
+.brand-version { font-size: 9px; }
+.lang-icon { width: 13px; height: 13px; }
+.lang-switcher select { display: block; height: 28px; min-height: 28px; max-width: 84px; margin: 0; padding: 1px; line-height: 18px; }
+.icon-button { display: grid; width: 28px; height: 28px; min-height: 28px; padding: 0; place-items: center; border-radius: 7px; line-height: 0; }
+.icon-button svg, .theme-icon { display: block; width: 14px; height: 14px; }
+.theme-icon { width: 16px; height: 16px; }
+/* 状态摘要只保留核心值，完整标签通过 aria-label/title 提供，避免中间文本撑高头部。 */
+.status-summary { display: flex; min-width: 0; justify-self: stretch; overflow: hidden; align-items: center; gap: 2px 5px; margin: 0; color: var(--color-text-muted); font-size: 10px; line-height: 1.2; white-space: nowrap; }
+.summary-item { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.summary-item-image { max-width: 16ch; }
+.summary-item-status { color: var(--color-text-strong); font-weight: 650; }
 .summary-sep { color: var(--color-text-subtle); }
-/* <960px：状态摘要换行到品牌/操作行下方，独占一行；条件动作折叠为图标按钮。 */
+/* 移动端将状态摘要独占第二行，第一行只承载品牌和工具栏，避免控件被裁切。 */
 @media (max-width: 959px) {
-  .status-summary { grid-column: 1 / -1; grid-row: 2; }
+  .app-header { grid-template-columns: minmax(0, 1fr) auto; gap: 5px 8px; padding: 6px 8px; }
+  .status-summary { grid-column: 1 / -1; grid-row: 2; min-height: 16px; }
+  .header-actions { gap: 5px; }
   .header-action { width: 32px; min-width: 32px; min-height: 32px; padding: 5px; }
   .header-action span { display: none; }
 }
-@media (max-width: 520px) { .app-header { min-height: 54px; padding: 7px 8px; gap: 6px 8px; }.logo-mark { width: 30px; height: 30px; }.logo-mark img { width: 25px; height: 25px; }.brand-text { display: none; }.lang-switcher { padding: 4px 6px; }.lang-switcher select { max-width: 70px; font-size: 12px; }.icon-button { width: 32px; height: 32px; }.status-summary { font-size: 11px; } }
+@media (max-width: 520px) {
+  .app-header { padding: 5px 7px; gap: 5px 6px; }
+  .brand-text { display: none; }
+  .logo-mark { width: 28px; height: 28px; }
+  .logo-mark img { width: 23px; height: 23px; }
+  .lang-switcher { padding: 3px 5px; }
+  .lang-switcher select { max-width: 70px; font-size: 11px; }
+  .icon-button { width: 30px; height: 30px; }
+  .status-summary { gap: 2px 4px; font-size: 10px; }
+  .summary-item-image { max-width: 10ch; }
+}
+/* 极窄屏隐藏重复下载入口，状态仍独占完整一行，保留语言、主题、GitHub 与清空操作。 */
+@media (max-width: 380px) {
+  .header-action:not(.danger) { display: none; }
+  .app-header { gap: 4px; }
+  .lang-switcher { gap: 2px; padding: 3px 4px; }
+  .lang-switcher select { max-width: 58px; font-size: 10px; }
+  .header-actions { gap: 4px; }
+}
 </style>

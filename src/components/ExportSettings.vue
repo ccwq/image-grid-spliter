@@ -24,14 +24,15 @@ const emit = defineEmits<{
 
 <template>
   <section class="panel export-panel">
-    <div class="export-controls" aria-label="导出设置">
-      <span class="export-summary">导出：{{ props.exportFormat.toUpperCase() }}</span>
+    <div class="export-controls" :aria-label="props.tr.export.eyebrow">
+      <span class="export-summary">{{ props.tr.export.summary(props.exportFormat.toUpperCase()) }}</span>
       <div class="export-field export-format-field">
         <div class="format-radios" role="radiogroup" :aria-label="props.tr.export.formatLabel">
           <label class="radio-pill">
             <Icon :icon="props.icons.file" class="btn-icon" aria-hidden="true" />
             <input
               type="radio"
+              name="export-format"
               value="jpg"
               :checked="props.exportFormat === 'jpg'"
               :disabled="props.processing"
@@ -43,6 +44,7 @@ const emit = defineEmits<{
             <Icon :icon="props.icons.image" class="btn-icon" aria-hidden="true" />
             <input
               type="radio"
+              name="export-format"
               value="png"
               :checked="props.exportFormat === 'png'"
               :disabled="props.processing"
@@ -80,5 +82,6 @@ const emit = defineEmits<{
 </template>
 
 <style scoped>
-.export-controls{display:flex;align-items:center;flex-wrap:wrap;min-width:0;gap:6px}.export-summary{flex:0 0 auto;color:var(--color-text-strong);font-size:12px;font-weight:700}.export-field{display:flex;align-items:center;min-width:0;gap:5px}.export-format-field{flex:0 0 auto}.format-radios{display:flex;flex-wrap:nowrap;gap:5px}.radio-pill{display:flex;min-height:30px;align-items:center;gap:3px;padding:3px 6px;border:1px solid var(--color-border-strong);border-radius:8px;color:var(--color-text-muted);font-size:12px;cursor:pointer}.radio-pill:has(input:checked){border-color:var(--color-accent);background:var(--color-accent-soft);color:var(--color-text-strong)}.radio-pill:has(input:disabled){opacity:.55;cursor:not-allowed}.radio-pill .btn-icon{width:13px;height:13px}.export-quality-field{flex:1 1 150px}.export-quality-field .field-label{font-size:12px}.quality-control{display:flex;align-items:center;flex:1 1 0;min-width:0;gap:4px}.quality-control input{flex:1 1 0;min-width:46px}.quality-text{font-size:12px;font-weight:700}.directory-export{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-width:0}.directory-hint{color:var(--color-text-muted);font-size:11px;line-height:1.3}.directory-export.ready .directory-hint{color:var(--color-accent)}.directory-button{flex:0 0 auto;font-size:11px;white-space:nowrap}@media(max-width:640px){.export-controls{gap:4px}.export-summary,.radio-pill,.export-quality-field .field-label,.quality-text{font-size:11px}.radio-pill .btn-icon{display:none}.format-radios{gap:3px}.export-quality-field{gap:3px}.quality-control{gap:3px}.directory-export{align-items:center;flex-direction:row;gap:6px}.directory-button{width:40px;min-width:40px;min-height:40px;padding:5px}.directory-button span{display:none}}
+.export-controls{display:flex;align-items:center;flex-wrap:wrap;min-width:0;gap:5px}.export-summary{flex:0 0 auto;color:var(--color-text-strong);font-size:11px;font-weight:700}.export-field{display:flex;align-items:center;min-width:0;gap:4px}.export-format-field{flex:0 0 auto}.format-radios{display:flex;flex-wrap:nowrap;gap:3px}.radio-pill{display:flex;min-height:28px;align-items:center;gap:3px;padding:2px 5px;border:1px solid var(--color-border-strong);border-radius:7px;color:var(--color-text-muted);font-size:11px;cursor:pointer}.radio-pill:has(input:checked){border-color:var(--color-accent);background:var(--color-accent-soft);color:var(--color-text-strong)}.radio-pill:has(input:disabled){opacity:.55;cursor:not-allowed}.radio-pill .btn-icon{width:12px;height:12px}.export-quality-field{flex:1 1 140px}.export-quality-field .field-label{font-size:11px}.quality-control{display:flex;align-items:center;flex:1 1 0;min-width:0;gap:3px}.quality-control input{flex:1 1 0;min-width:42px}.quality-text{font-size:11px;font-weight:700}.directory-export{display:flex;align-items:center;justify-content:space-between;gap:6px;width:100%;min-width:0}.directory-hint{color:var(--color-text-muted);font-size:10px;line-height:1.25}.directory-export.ready .directory-hint{color:var(--color-accent)}.directory-button{flex:0 0 auto;height:28px;font-size:10px;white-space:nowrap}@media(max-width:640px){.export-controls{gap:3px}.export-summary,.radio-pill,.export-quality-field .field-label,.quality-text{font-size:10px}.radio-pill .btn-icon{display:none}.format-radios{gap:2px}.export-quality-field{gap:2px}.quality-control{gap:2px}.directory-export{align-items:center;flex-direction:row;gap:5px}.directory-button{width:30px;min-width:30px;min-height:28px;height:28px;padding:3px}.directory-button span{display:none}}
+@media(max-width:959px){.radio-pill{min-height:40px;padding:5px 8px}.directory-button{min-height:40px;height:40px}.quality-control input{min-height:40px}}
 </style>

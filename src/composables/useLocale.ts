@@ -39,8 +39,8 @@ type Translations = Record<
       toggleEdgeUnit: string
     }
     stats: { currentGrid: string; tileCount: string; imageSize: string; exportFormat: string; downloadStatus: string; notLoaded: string }
-    grid: { eyebrow: string; title: string; subtitle: string; columns: string; rows: string; apply: string }
-    export: { eyebrow: string; title: string; subtitle: string; formatLabel: string; qualityLabel: string; qualityAria: string; autoDownloadLabel: string; autoDownloadHint: string; directoryReady: string; directoryAvailable: string; directoryFallback: string; changeDirectory: string }
+    grid: { eyebrow: string; title: string; subtitle: string; columns: string; rows: string; apply: string; edgeErase: string; includeOuter: string }
+    export: { eyebrow: string; title: string; subtitle: string; formatLabel: string; qualityLabel: string; qualityAria: string; autoDownloadLabel: string; autoDownloadHint: string; directoryReady: string; directoryAvailable: string; directoryFallback: string; changeDirectory: string; summary: (format: string) => string }
     upload: { title: string; subtitle: string; tip: string; currentPrefix: string; sizePrefix: string; queuePrefix: (count: number) => string }
     results: { original: string; emptyUpload: string; result: string; waiting: string; previewPlaceholder: string; queueSummary: (count: number) => string; partialExport: (written: number, pending: number) => string; retryTraditionalDownload: string }
     progress: { generating: (current: number, total: number) => string; saving: (current: number, total: number) => string; downloading: (current: number, total: number) => string; directoryReport: (completed: number, total: number, renamed: number, pending: number) => string; traditionalReport: (completed: number, total: number) => string; generationReport: (completed: number, total: number, pending: number) => string; close: string; cancel: string }
@@ -129,6 +129,8 @@ const translations: Translations = {
       columns: '列',
       rows: '行',
       apply: '使用自定义网格',
+      edgeErase: '边线擦除',
+      includeOuter: '包含外边缘',
     },
     export: {
       eyebrow: '导出设置',
@@ -143,6 +145,7 @@ const translations: Translations = {
       directoryAvailable: '支持指定导出目录；首次“下载全部”时选择目录。',
       directoryFallback: '此浏览器使用传统逐张下载；保存位置由浏览器设置决定。',
       changeDirectory: '更换导出目录',
+      summary: (format: string) => `导出：${format}`,
     },
     upload: {
       title: '拖拽图片到此处，或点击选择',
@@ -262,6 +265,8 @@ const translations: Translations = {
       columns: 'Cols',
       rows: 'Rows',
       apply: 'Apply custom grid',
+      edgeErase: 'Erase grid lines',
+      includeOuter: 'Include outer edges',
     },
     export: {
       eyebrow: 'Export settings',
@@ -276,6 +281,7 @@ const translations: Translations = {
       directoryAvailable: 'This browser supports an export folder. Choose it on your first Download all.',
       directoryFallback: 'This browser uses standard per-file downloads; the save location is controlled by browser settings.',
       changeDirectory: 'Change export folder',
+      summary: (format: string) => `Export: ${format}`,
     },
     upload: {
       title: 'Drop image here or click to select',

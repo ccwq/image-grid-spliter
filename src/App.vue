@@ -229,4 +229,14 @@ onBeforeUnmount(() => {
 .page{max-width:1400px;padding:10px;gap:8px}.workspace{display:grid;grid-template-columns:minmax(410px,440px) minmax(0,1fr);align-items:start;gap:8px}.control-rail{position:sticky;top:8px;display:grid;gap:8px;min-width:0}.control-stack,.content-rail{display:grid;gap:8px;min-width:0}.control-stack>*,.content-rail>.upload-panel,.content-rail>.results{min-width:0}.image-title{margin:0;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.image-tile-count{margin:2px 0 0;font-size:12px}.icon-only{width:40px;min-width:40px;min-height:40px;padding:5px}.compact-result-action{white-space:nowrap}@media(max-width:959px){.page{padding:8px 8px calc(82px + env(safe-area-inset-bottom));gap:8px}.workspace{grid-template-columns:minmax(0,1fr);gap:8px}.control-rail{position:static;order:1}.content-rail{order:2}.results-header{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:8px;padding:10px}.results-header h3{margin:1px 0;font-size:17px}.results-overview>.muted{margin:3px 0;font-size:11px;line-height:1.35}.results-actions{align-items:flex-end;gap:4px}.auto-toggle{font-size:11px;white-space:nowrap}.auto-download-hint,.results-download{display:none}.result-collapse,.compact-result-action{width:40px;min-width:40px;min-height:40px;padding:5px}.result-collapse span,.compact-result-action span{display:none}.results-header .link-btn{margin-top:2px}.tiles-header{flex-direction:row;align-items:center}.results-actions{align-items:flex-start}.image-list{padding-bottom:76px}}@media(min-width:960px) and (max-width:1199px){.image-block{grid-template-columns:minmax(0,1fr)}.tiles-header{align-items:center}.tiles-actions{flex-wrap:wrap;justify-content:flex-end}}@media(min-width:960px){.content-rail>.upload-panel:not(.has-image){min-height:calc(100dvh - 270px)}
 /* PC 端为浮动导出栏预留底部净空，滚动到底时最后一行内容不被遮挡。 */
 .content-rail{padding-bottom:72px}}
+.panel { padding: 8px; }
+.preset { display: grid; min-height: 28px; place-items: center start; }
+.dropzone { padding: 10px 12px; }
+.results-header { padding: 8px; }
+.image-list { padding: 8px; }
+.image-block { padding: 8px; }
+.icon-only { width: 30px; min-width: 30px; min-height: 28px; }
+.result-collapse, .compact-result-action { min-height: 30px; }
+/* 移动端保持触控舒适度；桌面端继续使用上方紧凑尺寸。 */
+@media(max-width:959px){.icon-only,.result-collapse,.compact-result-action{width:40px;min-width:40px;min-height:40px}.dropzone{padding:14px 12px}}
 </style>

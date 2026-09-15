@@ -64,14 +64,14 @@ const emit = defineEmits<{
 </template>
 
 <style scoped>
-.drop-content { display: grid; justify-items: center; gap: 6px; }
-.choose-image { min-height: 34px; }
-.drop-icon { width: 22px; height: 22px; color: var(--color-text-strong); }
+.drop-content { display: grid; justify-items: center; gap: 4px; }
+.choose-image { min-height: 28px; }
+.drop-icon { width: 20px; height: 20px; color: var(--color-text-strong); }
 .drop-title,.drop-copy .muted { margin: 0; }
 .drop-title { font-weight: 700; }
-.has-image .dropzone { padding: 8px 10px; border-style: dashed; }
-.upload-status { display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:8px; min-width:0; }
-.upload-status .drop-icon { width:18px; height:18px; }.upload-status-copy { display:grid; min-width:0; gap:1px; }.upload-status-copy strong,.upload-status-copy span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }.upload-status-copy strong { font-size:13px; }.upload-status-copy span { color:var(--color-text-muted); font-size:11px; }.upload-add { flex:0 0 auto; }
+.has-image .dropzone { padding: 6px 8px; border-style: dashed; }
+.upload-status { display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:6px; min-width:0; }
+.upload-status .drop-icon { width:17px; height:17px; }.upload-status-copy { display:grid; min-width:0; gap:1px; }.upload-status-copy strong,.upload-status-copy span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }.upload-status-copy strong { font-size:12px; }.upload-status-copy span { color:var(--color-text-muted); font-size:10px; }.upload-add { flex:0 0 auto; }
 
 @media (max-width: 620px) {
   .upload-status-copy span { font-size:10px; }
