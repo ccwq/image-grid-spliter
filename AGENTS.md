@@ -31,3 +31,13 @@
 沿用 Conventional Commit，可带 emoji：`fix(slice-editor): 修复草稿确认`、`feat(export): 支持目录导出`、`docs(workflow): 记录验证`。一次提交只处理一个清晰范围。
 
 PR 说明应包含用户可见变化、已执行的验证命令、关联 issue/spec（如有）；布局改动附桌面与移动端截图。不要提交 `dist/` 产物或浏览器本地数据。
+
+## Agent skills
+
+### Issue tracker
+
+Issues live as local markdown files under `.scratch/<feature-slug>/`. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context: `GLOSSARY.md` at repo root + `docs/adr/`. See `docs/agents/domain.md`.
