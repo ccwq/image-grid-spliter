@@ -111,7 +111,9 @@ describe('ResultsPanel', () => {
     await wrapper.get('.export-retry button').trigger('click')
     expect(wrapper.emitted('retry-pending-downloads')).toHaveLength(1)
 
-    await wrapper.get('.compact-result-action').trigger('click')
+    // 新增设置按钮排首位，逐图下载按钮按 aria-label 定位（避免选择器顺序耦合）
+    const perImage = wrapper.findAll('.compact-result-action').find((b) => b.attributes('aria-label') === tr.buttons.downloadImage) ?? wrapper.get('.tiles-actions .compact-result-action')
+    await perImage.trigger('click')
     expect(wrapper.emitted('download-image')?.[0]).toEqual(['a'])
   })
 
@@ -143,14 +145,15 @@ describe('ResultsPanel', () => {
     const wrapper = mountPanel(tr, { processing: true, pendingTraditionalDownloads: { written: 3, pending: 1 } })
 
     const downloadAll = wrapper.get('button.results-download')
-    const perImage = wrapper.get('.compact-result-action')
+    // 逐图下载按钮按 aria-label 定位（首个 .compact-result-action 现为单图设置按钮）
+    const perImage = wrapper.findAll('.compact-result-action').find((b) => b.attributes('aria-label') === tr.buttons.downloadImage)
     const retry = wrapper.get('.export-retry button')
     expect(downloadAll.element.disabled).toBe(true)
-    expect(perImage.element.disabled).toBe(true)
+    expect(perImage?.element.disabled).toBe(true)
     expect(retry.element.disabled).toBe(true)
 
     await downloadAll.trigger('click')
-    await perImage.trigger('click')
+    await perImage?.trigger('click')
     await retry.trigger('click')
     expect(wrapper.emitted('trigger-downloads')).toBeUndefined()
     expect(wrapper.emitted('download-image')).toBeUndefined()
@@ -214,5 +217,109 @@ describe('ResultsPanel', () => {
     const tr = setupZhTr()
     const wrapper = mountPanel(tr, { images: [] })
     expect(wrapper.find('section.panel.results').exists()).toBe(false)
+  })
+
+  /**
+   * Given：队列中有两张图片且未处理中
+   * When：渲染每张图片卡片的队列操作区并依次点击
+   * Then：首图上移禁用、末图下移禁用，点击可用按钮发出 move-image 携带 id 与方向，点击删除发出 remove-image
+   * 防回归：边界禁用缺失会让用户把首图移出队列顶端产生空位，事件载荷缺 id 会让编排层无法定位图片
+   */
+  it('转发队列排序与删除事件并按边界禁用', async () => {
+    const tr = setupZhTr()
+    const wrapper = mountPanel(tr)
+    const blocks = wrapper.findAll('.image-block')
+
+    const firstUp = blocks[0].get('.queue-actions .icon-only')
+    expect(firstUp.element.disabled).toBe(true)
+    const firstDown = blocks[0].findAll('.queue-actions .icon-only')[1]
+    expect(firstDown.element.disabled).toBe(false)
+
+    const lastDown = blocks[1].findAll('.queue-actions .icon-only')[1]
+    expect(lastDown.element.disabled).toBe(true)
+
+    await blocks[0].findAll('.queue-actions .icon-only')[1].trigger('click')
+    expect(wrapper.emitted('move-image')?.[0]).toEqual(['a', 1])
+    await blocks[1].findAll('.queue-actions .icon-only')[0].trigger('click')
+    expect(wrapper.emitted('move-image')?.[1]).toEqual(['b', -1])
+
+    await blocks[0].get('.queue-actions .danger-action').trigger('click')
+    expect(wrapper.emitted('remove-image')?.[0]).toEqual(['a'])
+  })
+
+  /**
+   * Given：处理中（processing=true）
+   * When：渲染队列操作区并尝试点击排序/删除/单图设置按钮
+   * Then：全部按钮 disabled 且不发出事件
+   * 防回归：处理中允许队列变更会与在途生成产生竞态，T01 决议明确 processing 禁用
+   */
+  it('处理中禁用队列操作与单图设置按钮', async () => {
+    const tr = setupZhTr()
+    const wrapper = mountPanel(tr, { processing: true })
+    const block = wrapper.get('.image-block')
+
+    const queueButtons = block.findAll('.queue-actions .icon-only')
+    expect(queueButtons.map((b) => b.element.disabled)).toEqual([true, true, true])
+    const settingsButton = block.get('.tiles-actions .compact-result-action')
+    expect(settingsButton.element.disabled).toBe(true)
+
+    await queueButtons[0].trigger('click')
+    await settingsButton.trigger('click')
+    expect(wrapper.emitted('move-image')).toBeUndefined()
+    expect(wrapper.emitted('open-image-settings')).toBeUndefined()
+  })
+
+  /**
+   * Given：图片带 fileSizeBytes 且切片有 blob
+   * When：渲染原图预览与切片缩略图
+   * Then：两处均渲染 size-badge 大小角标且文本为 format.fileSize 输出；无 fileSizeBytes 的原图不渲染角标
+   * 防回归：角标缺失会让 T06 大小可见性目标失效；无数据时渲染 undefined 会污染界面
+   */
+  it('原图与切片渲染文件大小角标', () => {
+    const tr = setupZhTr()
+    const images = [makeImage('a', 2)]
+    images[0].fileSizeBytes = 1536
+    const wrapper = mountPanel(tr, { images })
+
+    const badges = wrapper.findAll('.size-badge')
+    expect(badges).toHaveLength(3)
+    expect(badges[0].text()).toBe(tr.format.fileSize(1536))
+    expect(badges[1].text()).toBe(tr.format.fileSize(images[0].tiles[0].blob.size))
+  })
+
+  /**
+   * Given：一张图带 gridOverride（1 条水平线 + 0 条垂直线），另一张无覆盖
+   * When：渲染每张图片卡片
+   * Then：覆盖图显示覆盖行列描述，无覆盖图显示"跟随全局网格"
+   * 防回归：T04 摘要降级要求每图卡片内各自描述，丢失会让用户无法辨认哪张图被覆盖
+   */
+  it('每图网格描述区分覆盖与跟随全局', () => {
+    const tr = setupZhTr()
+    const images = [makeImage('a', 1), makeImage('b', 1)]
+    images[0].gridOverride = { horizontalLines: [0.5], verticalLines: [] }
+    const wrapper = mountPanel(tr, { images })
+
+    const blocks = wrapper.findAll('.image-block')
+    expect(blocks[0].text()).toContain(tr.format.gridDescription(1, 2))
+    expect(blocks[1].text()).toContain(tr.grid.perImageFollowsGlobal)
+  })
+
+  /**
+   * Given：内联模式可见
+   * When：渲染头部操作区并点击"清除所有"
+   * Then：清除按钮存在且发出 trigger-clear-all；处理中禁用
+   * 防回归：T05 要求移动端摘要旁有清除第二入口，丢失会让移动端只能回 header 清除
+   */
+  it('内联模式渲染清除所有入口并转发事件', async () => {
+    const tr = setupZhTr()
+    const wrapper = mountPanel(tr, { showInlineDownloadControls: true })
+
+    const clearAll = wrapper.get('.clear-all-action')
+    expect(clearAll.text()).toBe(tr.buttons.clearAll)
+    await clearAll.trigger('click')
+    expect(wrapper.emitted('trigger-clear-all')).toHaveLength(1)
+
+    const processingWrapper = mountPanel(tr, { showInlineDownloadControls: true, processing: true })
+    expect(processingWrapper.get('.clear-all-action').element.disabled).toBe(true)
   })
 })

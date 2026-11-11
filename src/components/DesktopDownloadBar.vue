@@ -9,13 +9,17 @@ interface Props {
   icons: Record<string, unknown>
   queueCount: number
   autoDownload: boolean
+  /** 下载全部遍历顺序开关（T02）：false 正序 / true 逆序。 */
+  downloadReverse: boolean
   processing: boolean
 }
 
 const props = defineProps<Props>()
 const emit = defineEmits<{
   (e: 'toggle-auto-download', value: boolean): void
+  (e: 'toggle-download-reverse', value: boolean): void
   (e: 'trigger-downloads'): void
+  (e: 'trigger-clear-all'): void
 }>()
 </script>
 
@@ -25,6 +29,19 @@ const emit = defineEmits<{
     <div class="download-bar-aligner">
       <div class="download-bar-row">
         <p class="download-bar-queue">{{ props.tr.results.queueSummary(props.queueCount) }}</p>
+        <!-- 逆序开关（T02）：仅影响下载全部遍历顺序，队列本身不动。 -->
+        <label class="download-bar-auto download-bar-reverse">
+          <input
+            type="checkbox"
+            :checked="props.downloadReverse"
+            :disabled="props.processing"
+            :aria-label="props.tr.buttons.downloadReverse"
+            @change="emit('toggle-download-reverse', ($event.target as HTMLInputElement).checked)"
+          />
+          <span>{{ props.tr.buttons.downloadReverse }}</span>
+        </label>
+        <!-- 清除所有第二入口（T05）：confirm 由 App.vue 承担。 -->
+        <button class="ghost download-bar-clear" type="button" :disabled="props.processing" @click="emit('trigger-clear-all')">{{ props.tr.buttons.clearAll }}</button>
         <label class="download-bar-auto">
           <input
             type="checkbox"
@@ -55,6 +72,9 @@ const emit = defineEmits<{
 .download-bar-queue { flex: 1; min-width: 0; margin: 0; overflow: hidden; color: var(--color-text-muted); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
 .download-bar-auto { display: inline-flex; flex-shrink: 0; align-items: center; gap: 6px; color: var(--color-text-strong); font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
 .download-bar-auto input { width: 15px; height: 15px; margin: 0; }
+.download-bar-clear { min-height: 40px; padding: 8px 12px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.download-bar-clear:hover { border-color: var(--color-danger); color: var(--color-danger); }
+.download-bar-clear:disabled { border-color: var(--color-border-strong); color: var(--color-disabled-text); }
 .download-bar-all { min-height: 40px; padding: 8px 16px; border-color: var(--color-accent); background: var(--color-accent); color: var(--color-on-accent); font-size: 13px; font-weight: 800; }
 .download-bar-all:hover { border-color: var(--color-accent-hover); background: var(--color-accent-hover); color: var(--color-on-accent); }
 .download-bar-all:disabled { border-color: var(--color-border-strong); background: var(--color-disabled-bg); color: var(--color-disabled-text); }

@@ -37,9 +37,19 @@ type Translations = Record<
       expandResults: string
       collapseResults: string
       toggleEdgeUnit: string
+      removeImage: string
+      moveImageUp: string
+      moveImageDown: string
+      downloadReverse: string
+      replaceUpload: string
+      replaceUploadConfirm: (count: number) => string
+      clearAll: string
+      clearAllConfirm: string
+      imageSettings: string
+      gridOverrideFallback: string
     }
     stats: { currentGrid: string; tileCount: string; imageSize: string; exportFormat: string; downloadStatus: string; notLoaded: string }
-    grid: { eyebrow: string; title: string; subtitle: string; columns: string; rows: string; apply: string; edgeErase: string; includeOuter: string }
+    grid: { eyebrow: string; title: string; subtitle: string; columns: string; rows: string; apply: string; edgeErase: string; includeOuter: string; perImageFollowsGlobal: string }
     export: { eyebrow: string; title: string; subtitle: string; formatLabel: string; qualityLabel: string; qualityAria: string; autoDownloadLabel: string; autoDownloadHint: string; directoryReady: string; directoryAvailable: string; directoryFallback: string; changeDirectory: string; summary: (format: string) => string }
     upload: { title: string; subtitle: string; tip: string; currentPrefix: string; sizePrefix: string; queuePrefix: (count: number) => string }
     results: { original: string; emptyUpload: string; result: string; waiting: string; previewPlaceholder: string; queueSummary: (count: number) => string; partialExport: (written: number, pending: number) => string; retryTraditionalDownload: string }
@@ -63,17 +73,26 @@ type Translations = Record<
       gridDescription: (cols: number, rows: number) => string
       presetSub: (cols: number, rows: number) => string
       imageSize: (width: number, height: number) => string
+      fileSize: (bytes: number) => string
       imageCount: (count: number) => string
       imageCountWithSize: (count: number, width: number, height: number) => string
       tilesHeading: (count: number) => string
       resultsSummary: (grid: string, base: string, fmt: string, quality: string, isJpg: boolean) => string
       resultsSummaryMulti: (grid: string, fmt: string, count: number, isJpg: boolean, quality: string) => string
     }
-    aria: { github: string; language: string; themeToggle: string }
+    aria: { github: string; language: string; themeToggle: string; closeDialog: string }
   }
 >
 
 const LOCALE_STORAGE_KEY = 'igs:locale'
+
+/** 字节格式化（1024 进制，KB/MB 保留一位小数）：原图与切片大小角标共用，中英文同形 */
+const formatFileSize = (bytes: number): string => {
+  if (!Number.isFinite(bytes) || bytes <= 0) return ''
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
 
 const translations: Translations = {
   'zh-CN': {
@@ -113,6 +132,16 @@ const translations: Translations = {
       expandResults: '查看宫格',
       collapseResults: '收起宫格',
       toggleEdgeUnit: '切换边线单位',
+      removeImage: '从队列移除此图片',
+      moveImageUp: '上移',
+      moveImageDown: '下移',
+      downloadReverse: '逆序',
+      replaceUpload: '覆盖上传',
+      replaceUploadConfirm: (count: number) => `队列中有 ${count} 张未下载的图片，上传将替换整个队列。确定替换吗？`,
+      clearAll: '清除所有',
+      clearAllConfirm: '确定清除队列中的全部图片与切片结果吗？',
+      imageSettings: '单图网格设置',
+      gridOverrideFallback: '使用全局网格',
     },
     stats: {
       currentGrid: '当前网格',
@@ -131,6 +160,7 @@ const translations: Translations = {
       apply: '使用自定义网格',
       edgeErase: '边线擦除',
       includeOuter: '包含外边缘',
+      perImageFollowsGlobal: '跟随全局网格',
     },
     export: {
       eyebrow: '导出设置',
@@ -194,6 +224,7 @@ const translations: Translations = {
       gridDescription: (cols: number, rows: number) => `${cols} 列 x ${rows} 行`,
       presetSub: (cols: number, rows: number) => `${cols} 列 · ${rows} 行`,
       imageSize: (width: number, height: number) => `${width} x ${height}`,
+      fileSize: formatFileSize,
       imageCount: (count: number) => `${count} 张图片`,
       imageCountWithSize: (count: number, width: number, height: number) => `${count} 张图片 · 首张 ${width} x ${height}`,
       tilesHeading: (count: number) => (count ? `${count} 个切片` : '等待裁切'),
@@ -210,6 +241,7 @@ const translations: Translations = {
       github: '前往 GitHub 仓库',
       language: '切换语言',
       themeToggle: '切换亮暗主题',
+      closeDialog: '关闭',
     },
   },
   en: {
@@ -249,6 +281,16 @@ const translations: Translations = {
       expandResults: 'Show grid',
       collapseResults: 'Hide grid',
       toggleEdgeUnit: 'Switch edge unit',
+      removeImage: 'Remove this image from queue',
+      moveImageUp: 'Move up',
+      moveImageDown: 'Move down',
+      downloadReverse: 'Reverse order',
+      replaceUpload: 'Replace on upload',
+      replaceUploadConfirm: (count: number) => `${count} image(s) in the queue have not been downloaded. Uploading will replace the whole queue. Replace anyway?`,
+      clearAll: 'Clear all',
+      clearAllConfirm: 'Clear all queued images and slice results?',
+      imageSettings: 'Per-image grid settings',
+      gridOverrideFallback: 'Use global grid',
     },
     stats: {
       currentGrid: 'Current grid',
@@ -267,6 +309,7 @@ const translations: Translations = {
       apply: 'Apply custom grid',
       edgeErase: 'Erase grid lines',
       includeOuter: 'Include outer edges',
+      perImageFollowsGlobal: 'Follow global grid',
     },
     export: {
       eyebrow: 'Export settings',
@@ -330,6 +373,7 @@ const translations: Translations = {
       gridDescription: (cols: number, rows: number) => `${cols} cols x ${rows} rows`,
       presetSub: (cols: number, rows: number) => `${cols} cols · ${rows} rows`,
       imageSize: (width: number, height: number) => `${width} x ${height}`,
+      fileSize: formatFileSize,
       imageCount: (count: number) => `${count} images`,
       imageCountWithSize: (count: number, width: number, height: number) => `${count} images · first ${width} x ${height}`,
       tilesHeading: (count: number) => (count ? `${count} tiles` : 'Waiting to slice'),
@@ -346,6 +390,7 @@ const translations: Translations = {
       github: 'Open GitHub repo',
       language: 'Switch language',
       themeToggle: 'Toggle light/dark theme',
+      closeDialog: 'Close',
     },
   },
 }

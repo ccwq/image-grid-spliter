@@ -9,6 +9,7 @@ import ExportProgressOverlay from './components/ExportProgressOverlay.vue'
 import ExportSettings from './components/ExportSettings.vue'
 import GridPresetsPanel from './components/GridPresetsPanel.vue'
 import MobileAdvancedDrawer from './components/MobileAdvancedDrawer.vue'
+import PerImageGridSetting from './components/PerImageGridSetting.vue'
 import ResultsPanel from './components/ResultsPanel.vue'
 import SliceEditor from './components/SliceEditor.vue'
 import UploadPanel from './components/UploadPanel.vue'
@@ -20,7 +21,7 @@ import { useLocale, type ExportFormat } from './composables/useLocale'
 import { gridPresets } from './utils/grid'
 import 'photoswipe/style.css'
 
-const icons = { grid: pixelarticons.icons.grid, upload: pixelarticons.icons['cloud-upload'], download: pixelarticons.icons.download, image: pixelarticons.icons.image, flag: pixelarticons.icons.flag, info: pixelarticons.icons['info-box'], redo: pixelarticons.icons.redo, trash: pixelarticons.icons.trash, check: pixelarticons.icons.check, chevronDown: pixelarticons.icons['chevron-down'], chevronUp: pixelarticons.icons['chevron-up'], imagePlus: pixelarticons.icons['image-plus'], file: pixelarticons.icons.file, folder: pixelarticons.icons.folder, sun: pixelarticons.icons.sun, moon: pixelarticons.icons.moon }
+const icons = { grid: pixelarticons.icons.grid, upload: pixelarticons.icons['cloud-upload'], download: pixelarticons.icons.download, image: pixelarticons.icons.image, flag: pixelarticons.icons.flag, info: pixelarticons.icons['info-box'], redo: pixelarticons.icons.redo, trash: pixelarticons.icons.trash, check: pixelarticons.icons.check, chevronDown: pixelarticons.icons['chevron-down'], chevronUp: pixelarticons.icons['chevron-up'], imagePlus: pixelarticons.icons['image-plus'], file: pixelarticons.icons.file, folder: pixelarticons.icons.folder, sun: pixelarticons.icons.sun, moon: pixelarticons.icons.moon, sliders: pixelarticons.icons.sliders, arrowUp: pixelarticons.icons['arrow-up'], arrowDown: pixelarticons.icons['arrow-down'] }
 const appVersion = __APP_VERSION__
 const githubUrl = 'https://github.com/ccwq/image-grid-spliter'
 const isMobile = ref(false)
@@ -49,11 +50,17 @@ const {
 } = useGridSettings({ isMobile, messages: currentMessages })
 const editableTileCount = computed(() => (slicePlan.value.horizontalLines.length + 1) * (slicePlan.value.verticalLines.length + 1))
 const editableGridDescription = computed(() => currentMessages.value.format.gridDescription(slicePlan.value.verticalLines.length + 1, slicePlan.value.horizontalLines.length + 1))
+// 覆盖上传确认（T03）：存在未下载图片时弹 confirm，文案携带未下载数量。
+// 经 deps 注入 useImageSlicer，onFileChange/onDrop 等内部上传路径自动携带。
+const confirmReplaceUpload = async (): Promise<boolean> => {
+  const pendingCount = images.value.filter((item) => !item.downloaded).length
+  return window.confirm(currentMessages.value.buttons.replaceUploadConfirm(pendingCount))
+}
 const {
-  fileInput, images, totalTiles, autoDownload, firstImageSize, state, statusText, clearError, resetApp, dispose, triggerDownloads, processAll,
+  fileInput, images, totalTiles, autoDownload, downloadReverse, replaceUpload, firstImageSize, state, statusText, clearError, resetApp, dispose, triggerDownloads, processAll,
   onFileChange, onDrop, onDragOver, onDragLeave, handleGlobalDragOver, handleGlobalDrop, triggerFileSelect,
-  setAutoDownload, downloadSingleImage, directoryExportSupported, directoryExportReady, pendingTraditionalDownloads, changeExportDirectory, savePreviewTile, savePreviewTileAs, retryPendingTraditionalDownloads, exportProgress, dismissExportProgress, cancelProcessing,
-} = useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQuality, gridDescription: editableGridDescription, currentMessages })
+  setAutoDownload, setDownloadReverse, setReplaceUpload, removeImage, moveImage, setGridOverride, downloadSingleImage, directoryExportSupported, directoryExportReady, pendingTraditionalDownloads, changeExportDirectory, savePreviewTile, savePreviewTileAs, retryPendingTraditionalDownloads, exportProgress, dismissExportProgress, cancelProcessing,
+} = useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQuality, gridDescription: editableGridDescription, currentMessages, confirmReplacePrompt: confirmReplaceUpload })
 
 const hasImage = computed(() => images.value.length > 0)
 const imageSizeLabel = computed(() => firstImageSize.value ? images.value.length > 1 ? currentMessages.value.format.imageCountWithSize(images.value.length, firstImageSize.value.width, firstImageSize.value.height) : currentMessages.value.format.imageSize(firstImageSize.value.width, firstImageSize.value.height) : currentMessages.value.stats.notLoaded)
@@ -88,6 +95,26 @@ const resetAll = () => {
 const handleSelectPreset = (preset: GridPresetLike) => { selectPreset(preset) }
 const handleExportFormatChange = (format: ExportFormat) => { updateExportFormat(format) }
 const handleAutoDownloadToggle = (value: boolean) => { setAutoDownload(value); if (value && images.value.length) processAll(true, true) }
+
+// 单图网格设置层（T04）：记录当前编辑的图片 id；应用/回退后触发重算（与全局网格 watcher 同模式）。
+const perImageSettingsId = ref<string | null>(null)
+const perImageOverride = computed(() => perImageSettingsId.value ? images.value.find((el) => el.id === perImageSettingsId.value)?.gridOverride ?? null : null)
+const openPerImageSettings = (id: string) => { perImageSettingsId.value = id }
+const closePerImageSettings = () => { perImageSettingsId.value = null }
+const applyPerImageOverride = (id: string, override: { horizontalLines: number[]; verticalLines: number[] }) => {
+  if (setGridOverride(id, override)) processAll(false)
+  closePerImageSettings()
+}
+const resetPerImageOverride = (id: string) => {
+  if (setGridOverride(id, null)) processAll(false)
+  closePerImageSettings()
+}
+// 覆盖上传确认已在 useImageSlicer 工厂调用前声明（confirmReplaceUpload）。
+// 清除所有（T05）：复用 resetAll 语义，confirm 确认后执行；入口在浮动栏与移动端结果区。
+const clearAllWithConfirm = () => {
+  if (!images.value.length) return
+  if (window.confirm(currentMessages.value.buttons.clearAllConfirm)) resetAll()
+}
 
 type PreviewItem = DataSourceItem & { tileId: string; downloadName: string }
 const previewActive = ref(false)
@@ -196,10 +223,10 @@ onBeforeUnmount(() => {
 <template>
   <ExportProgressOverlay :progress="exportProgress" :tr="tr" :cancellable="state.processing" @cancel="cancelProcessing" @dismiss="dismissExportProgress" @retry-pending-downloads="retryPendingTraditionalDownloads" />
   <!-- PC 端浮动导出栏：队列非空 + v-if=!isMobile 门控 + 组件内部 min-width:960 媒体查询，移动端与空队列均不渲染。 -->
-  <DesktopDownloadBar v-if="!isMobile && images.length" :tr="tr" :icons="icons" :queue-count="images.length" :auto-download="autoDownload" :processing="state.processing" @toggle-auto-download="handleAutoDownloadToggle" @trigger-downloads="triggerDownloads" />
+  <DesktopDownloadBar v-if="!isMobile && images.length" :tr="tr" :icons="icons" :queue-count="images.length" :auto-download="autoDownload" :download-reverse="downloadReverse" :processing="state.processing" @toggle-auto-download="handleAutoDownloadToggle" @toggle-download-reverse="setDownloadReverse" @trigger-downloads="triggerDownloads" @trigger-clear-all="clearAllWithConfirm" />
   <main class="page">
     <!-- 紧凑头部：品牌 + 内联状态条（网格/切片/图片/格式/实时状态）+ 条件动作与外观/语言/GitHub 控制。 -->
-    <AppHeader :tr="tr" :icons="icons" :locale="locale" :supported-locales="supportedLocales" :app-version="appVersion" :github-url="githubUrl" :color-scheme="colorScheme" :grid-description="editableGridDescription" :tile-count="editableTileCount" :image-info="imageSizeLabel" :export-format="exportFormat" :quality-label="qualityLabel" :is-jpg-format="isJpgFormat" :status-text="statusText" :has-tiles="totalTiles > 0" :has-image="hasImage" @locale-change="switchLocale" @toggle-color-scheme="toggleTheme" @trigger-downloads="triggerDownloads" @reset="resetAll" />
+    <AppHeader :tr="tr" :icons="icons" :locale="locale" :supported-locales="supportedLocales" :app-version="appVersion" :github-url="githubUrl" :color-scheme="colorScheme" :replace-upload="replaceUpload" :grid-description="editableGridDescription" :tile-count="editableTileCount" :image-info="imageSizeLabel" :export-format="exportFormat" :quality-label="qualityLabel" :is-jpg-format="isJpgFormat" :status-text="statusText" :has-tiles="totalTiles > 0" :has-image="hasImage" @locale-change="switchLocale" @toggle-color-scheme="toggleTheme" @trigger-downloads="triggerDownloads" @reset="resetAll" @change-replace-upload="setReplaceUpload" />
     <div class="workspace">
       <aside class="control-rail">
         <div v-if="!isMobile" class="control-stack">
@@ -213,7 +240,7 @@ onBeforeUnmount(() => {
         <!-- 不放在组件插槽中，保证 composable 可稳定取得 ref 并触发系统文件选择器。 -->
         <input ref="fileInput" class="file-input" type="file" accept="image/*" multiple @change="onFileChange" />
         <UploadPanel :tr="tr" :icons="icons" :drag-over="state.dragOver" :has-image="hasImage" :first-base-name="firstBaseName" :first-image-size="firstImageSize" :queue-summary="queueSummary" :error-text="errorText" :is-mobile="isMobile" @drop="onDrop" @dragover="onDragOver" @dragleave="onDragLeave" @file-change="onFileChange" @pick="triggerFileSelect" />
-        <ResultsPanel :tr="tr" :icons="icons" :images="images" :tiles-heading="tilesHeading" :results-summary="resultsSummary" :auto-download="autoDownload" :processing="state.processing" :collapsed="resultsCollapsed" :show-inline-download-controls="isMobile" :pending-traditional-downloads="pendingTraditionalDownloads ? { written: totalTiles - pendingTraditionalDownloads.length, pending: pendingTraditionalDownloads.length } : null" @toggle-collapsed="resultsCollapsed = !resultsCollapsed" @toggle-auto-download="handleAutoDownloadToggle" @trigger-downloads="triggerDownloads" @retry-pending-downloads="retryPendingTraditionalDownloads" @download-image="downloadSingleImage" @preview-tile="openPreview" />
+        <ResultsPanel :tr="tr" :icons="icons" :images="images" :tiles-heading="tilesHeading" :results-summary="resultsSummary" :auto-download="autoDownload" :processing="state.processing" :collapsed="resultsCollapsed" :show-inline-download-controls="isMobile" :pending-traditional-downloads="pendingTraditionalDownloads ? { written: totalTiles - pendingTraditionalDownloads.length, pending: pendingTraditionalDownloads.length } : null" @toggle-collapsed="resultsCollapsed = !resultsCollapsed" @toggle-auto-download="handleAutoDownloadToggle" @trigger-downloads="triggerDownloads" @retry-pending-downloads="retryPendingTraditionalDownloads" @download-image="downloadSingleImage" @preview-tile="openPreview" @remove-image="removeImage" @move-image="moveImage" @open-image-settings="openPerImageSettings" @trigger-clear-all="clearAllWithConfirm" />
       </section>
     </div>
     <MobileAdvancedDrawer v-if="isMobile" v-model:open="advancedDrawerOpen" :has-image="hasImage" :download-disabled="state.processing || totalTiles === 0" @trigger-downloads="triggerDownloads">
@@ -222,6 +249,8 @@ onBeforeUnmount(() => {
       <ExportSettings :tr="tr" :icons="icons" :export-format="exportFormat" :is-jpg-format="isJpgFormat" :quality-label="qualityLabel" :jpg-quality-percent="jpgQualityPercent" :processing="state.processing || !hasImage" :directory-supported="directoryExportSupported" :directory-ready="directoryExportReady" @update:export-format="handleExportFormatChange" @update:jpg-quality-percent="jpgQualityPercent = $event" @change-directory="changeExportDirectory" />
     </MobileAdvancedDrawer>
   </main>
+  <!-- 单图网格设置层（T04）：PC popover/移动全屏层由组件内 isMobile 形态处理。 -->
+  <PerImageGridSetting :tr="tr" :image-id="perImageSettingsId" :override="perImageOverride" :global-grid-label="editableGridDescription" :processing="state.processing" :is-mobile="isMobile" @close="closePerImageSettings" @apply="applyPerImageOverride" @reset="resetPerImageOverride" />
 </template>
 
 <style>

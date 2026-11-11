@@ -876,3 +876,560 @@ describe('useImageSlicer 缓存接入', () => {
     expect(harness.revokedUrls).toContain(item.objectUrl)
   })
 })
+
+describe('useImageSlicer 队列控制与每图网格（queue-grid-controls）', () => {
+  // Node jsdom 的 anchor.click() 会尝试导航（jsdom 未实现），stub 掉避免噪音
+  const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+  afterEach(() => {
+    clickSpy.mockClear()
+    localStorage.clear()
+  })
+
+  /**
+   * Given：队列 3 张图均已生成（img-b 位于中间）
+   * When：removeImage('img-b')
+   * Then：img-b 移出队列，其 objectUrl 与全部 tile previewUrl 被回收；
+   *       切片缓存条目保留（条目数不变）——同内容图片重新拖入时可直接命中
+   * 防回归：删除若回收缓存条目，"删除后重新上传同一文件"会退化为完整重切
+   */
+  it('removeImage 移出队列并回收该图 URL，缓存条目保留', async () => {
+    const harness = createHarness()
+    harness.addImage('img-a', 'photo-a')
+    harness.addImage('img-b', 'photo-b')
+    harness.addImage('img-c', 'photo-c')
+    await harness.slicer.processAll(false)
+    const itemB = harness.slicer.images.value[1]
+    expect(harness.slicer.images.value.map((item) => item.id)).toEqual(['img-a', 'img-b', 'img-c'])
+    const entriesBefore = harness.cache.stats().entries
+    expect(entriesBefore).toBe(3)
+
+    const executed = harness.slicer.removeImage('img-b')
+
+    expect(executed).toBe(true)
+    expect(harness.slicer.images.value.map((item) => item.id)).toEqual(['img-a', 'img-c'])
+    expect(harness.revokedUrls).toContain(itemB!.objectUrl)
+    itemB!.tiles.forEach((tile) => expect(harness.revokedUrls).toContain(tile.previewUrl))
+    // 缓存条目保留：img-b 的切片仍可被同内容图片命中
+    expect(harness.cache.stats().entries).toBe(entriesBefore)
+  })
+
+  /**
+   * Given：删除 img-b 后（缓存条目保留、tilesKey 失效路径不可走——条目已不在队列）
+   * When：以相同内容标识重新入队并触发生成
+   * Then：经缓存命中重新物料化，不产生任何 produceTile 调用（零重切）
+   * 防回归：删除未保留缓存或命中路径被删除破坏，会违背"重复操作零等待"用户故事
+   */
+  it('删除后同内容重入命中缓存，不重切', async () => {
+    const harness = createHarness()
+    harness.addImage('img-b', 'photo-b')
+    await harness.slicer.processAll(false)
+    expect(harness.produced).toHaveLength(4)
+    harness.slicer.removeImage('img-b')
+    expect(harness.cache.stats().entries).toBe(1)
+
+    harness.addImage('img-b', 'photo-b-again')
+    await harness.slicer.processAll(false)
+
+    expect(harness.produced).toHaveLength(4) // 全程仅首轮 4 次裁切
+    expect(harness.slicer.images.value[0]!.tiles).toHaveLength(4)
+    expect(harness.slicer.images.value[0]!.tiles.every((tile) => tile.previewUrl)).toBe(true)
+  })
+
+  /**
+   * Given：一轮生成仍在进行（produceTile 挂起）
+   * When：处理中调用 removeImage / moveImage
+   * Then：两者均为 no-op 并返回 false，队列与缓存不受影响
+   * 防回归：processing 中删除/排序会与进行中的生成产生竞态（isLive 守卫放弃旧条目造成结果缺失）
+   */
+  it('processing 中删除与排序为 no-op（返回 false）', async () => {
+    const harness = createHarness()
+    harness.addImage('img-a', 'photo-a')
+    harness.addImage('img-b', 'photo-b')
+    const pending: Array<(b: Blob | null) => void> = []
+    harness.setGate(() => new Promise<Blob | null>((resolve) => pending.push(resolve)))
+
+    const run = harness.slicer.processAll(false)
+    await new Promise((r) => setTimeout(r, 0))
+    expect(harness.slicer.state.processing).toBe(true)
+
+    expect(harness.slicer.removeImage('img-a')).toBe(false)
+    expect(harness.slicer.moveImage('img-b', -1)).toBe(false)
+    expect(harness.slicer.setGridOverride('img-a', null)).toBe(false)
+    expect(harness.slicer.images.value.map((item) => item.id)).toEqual(['img-a', 'img-b'])
+
+    for (;;) {
+      await new Promise((r) => setTimeout(r, 0))
+      if (!pending.length) break
+      pending.shift()!(new Blob(['gate']))
+    }
+    await run
+    // 处理结束后同样 id 的操作恢复可执行（此处仅验证解除封锁，不展开重复断言）
+    expect(harness.slicer.moveImage('img-b', -1)).toBe(true)
+  })
+
+  /**
+   * Given：队列 3 张图
+   * When：moveImage 依次执行 上移首位图（越界）、下移 img-b、再次下移 img-b（到末位后再越界）
+   * Then：仅合法交换生效：数组仅按相邻位置交换，tiles/URL/缓存不受影响；非法操作返回 false
+   * 防回归：排序若移动非相邻位置或破坏数组其余元素，导出顺序与展示将不可预测
+   */
+  it('moveImage 仅交换相邻位置且越界/未知 id 拒绝执行', async () => {
+    const harness = createHarness()
+    harness.addImage('img-a', 'photo-a')
+    const itemB = harness.addImage('img-b', 'photo-b')
+    harness.addImage('img-c', 'photo-c')
+    await harness.slicer.processAll(false)
+    const tilesB = itemB.tiles
+
+    expect(harness.slicer.moveImage('img-a', -1)).toBe(false) // 首位上移越界
+    expect(harness.slicer.moveImage('img-x', -1)).toBe(false) // 未知 id
+    expect(harness.slicer.moveImage('img-b', 1)).toBe(true)
+    expect(harness.slicer.images.value.map((item) => item.id)).toEqual(['img-a', 'img-c', 'img-b'])
+    expect(harness.slicer.moveImage('img-b', 1)).toBe(false) // 末位下移越界
+    // 排序不触碰 tiles 与缓存
+    expect(itemB.tiles).toBe(tilesB)
+    expect(harness.cache.stats().entries).toBe(3)
+  })
+
+  /**
+   * Given：队列 3 张图已生成，传统下载路径（无目录选择器）
+   * When：开启逆序开关后 triggerDownloads()
+   * Then：下载触发顺序按队列副本反转（img-c → img-b → img-a），队列本身顺序不变；
+   *       报告 total 覆盖全部切片
+   * 防回归：逆序若直接反转队列会改变结果区展示顺序（展示顺序不随开关变化，spec Out of Scope）
+   */
+  it('逆序开关反转下载触发顺序且队列本身不动', async () => {
+    const harness = createHarness({ plan: plan1x1() })
+    const clickOrder: string[] = []
+    clickSpy.mockImplementation(function (this: HTMLAnchorElement) {
+      clickOrder.push(this.download)
+    })
+    harness.addImage('img-a', 'photo-a')
+    harness.addImage('img-b', 'photo-b')
+    harness.addImage('img-c', 'photo-c')
+    await harness.slicer.processAll(false)
+
+    harness.slicer.setDownloadReverse(true)
+    await harness.slicer.triggerDownloads()
+
+    // 传统路径 tile 名：单 tile 为 baseName.ext
+    expect(clickOrder).toEqual(['photo-c.png', 'photo-b.png', 'photo-a.png'])
+    // 队列本身顺序不变：逆序仅是遍历顺序反转
+    expect(harness.slicer.images.value.map((item) => item.id)).toEqual(['img-a', 'img-b', 'img-c'])
+    expect(harness.slicer.exportProgress.report?.mode).toBe('traditional')
+    expect(harness.slicer.exportProgress.report?.total).toBe(3)
+    clickSpy.mockImplementation(() => {})
+  })
+
+  /**
+   * Given：逆序开关关闭（默认）
+   * When：triggerDownloads()
+   * Then：按队列正序触发下载
+   * 防回归：默认值若为逆序会破坏"导入顺序即导出顺序"的既有行为
+   */
+  it('默认正序下载：未开启开关时按队列顺序触发', async () => {
+    const harness = createHarness({ plan: plan1x1() })
+    const clickOrder: string[] = []
+    clickSpy.mockImplementation(function (this: HTMLAnchorElement) {
+      clickOrder.push(this.download)
+    })
+    harness.addImage('img-a', 'photo-a')
+    harness.addImage('img-b', 'photo-b')
+    await harness.slicer.processAll(false)
+
+    await harness.slicer.triggerDownloads()
+
+    expect(clickOrder).toEqual(['photo-a.png', 'photo-b.png'])
+    clickSpy.mockImplementation(() => {})
+  })
+
+  /**
+   * Given：注入内存存储
+   * When：setDownloadReverse(true) 与 setReplaceUpload(true)
+   * Then：两个开关立即写入独立 localStorage 键；新建组合函数实例恢复两开关；
+   *       默认值均为 false（正序 / 追加）
+   * 防回归：开关不持久化会让"刷新后保留选择"的用户故事落空；键冲突会互相覆写
+   */
+  it('逆序与覆盖上传开关持久化到独立键并在新实例恢复', async () => {
+    const first = createHarness()
+    expect(first.slicer.downloadReverse.value).toBe(false)
+    expect(first.slicer.replaceUpload.value).toBe(false)
+
+    first.slicer.setDownloadReverse(true)
+    first.slicer.setReplaceUpload(true)
+    expect(localStorage.getItem('igs:download-reverse')).toBe('1')
+    expect(localStorage.getItem('igs:replace-upload')).toBe('1')
+
+    const second = createHarness()
+    expect(second.slicer.downloadReverse.value).toBe(true)
+    expect(second.slicer.replaceUpload.value).toBe(true)
+  })
+
+  /**
+   * Given：覆盖上传关闭（默认）
+   * When：addFiles 上传第二张不同内容的图片
+   * Then：按既有追加语义入队（2 张），不触发确认回调
+   * 防回归：覆盖逻辑泄漏到关闭状态会误清用户队列
+   */
+  it('覆盖上传关闭时保持追加语义且不触发确认', async () => {
+    const harness = createHarness()
+    const confirmReplace = vi.fn(async () => true)
+    await harness.slicer.addFiles([makeUploadFile('first', [1])])
+    await harness.slicer.addFiles([makeUploadFile('second', [2])], { confirmReplace })
+
+    expect(harness.slicer.images.value).toHaveLength(2)
+    expect(confirmReplace).not.toHaveBeenCalled()
+  })
+
+  /**
+   * Given：覆盖上传开启、队列 1 张未下载图片
+   * When：addFiles 上传新图（确认回调同意）
+   * Then：确认回调被调用一次；旧队列整体替换——旧图 objectUrl 与 tile previewUrl 全部回收；
+   *       队列仅含新图；缓存条目保留（不清缓存）
+   * 防回归：覆盖若复用 resetApp（cache.clear）会违背 T01/T03"缓存条目保留"决议
+   */
+  it('覆盖上传（同意分支）：清空旧队列加入新图且缓存保留', async () => {
+    const harness = createHarness()
+    await harness.slicer.addFiles([makeUploadFile('old', [1])])
+    await harness.slicer.processAll(false)
+    const oldItem = harness.slicer.images.value[0]
+    const entriesBefore = harness.cache.stats().entries
+    expect(entriesBefore).toBe(1)
+
+    harness.slicer.setReplaceUpload(true)
+    const confirmReplace = vi.fn(async () => true)
+    await harness.slicer.addFiles([makeUploadFile('new', [2])], { confirmReplace })
+
+    expect(confirmReplace).toHaveBeenCalledTimes(1)
+    expect(harness.slicer.images.value).toHaveLength(1)
+    expect(harness.slicer.images.value[0]!.baseName).toBe('new')
+    expect(harness.revokedUrls).toContain(oldItem!.objectUrl)
+    // 缓存不清：旧条目保留 + 新图生成入账（对比 resetApp 的归零语义）
+    expect(harness.cache.stats().entries).toBe(entriesBefore + 1)
+    expect(harness.slicer.images.value[0]!.tiles).toHaveLength(4)
+  })
+
+  /**
+   * Given：覆盖上传开启、队列存在未下载图片
+   * When：确认回调拒绝后 addFiles
+   * Then：本次上传整体作废——队列保持原样（1 张旧图）、新图不入队、URL 不创建
+   * 防回归：取消后若仍清空或部分入队，用户误触上传会丢失未导出成果
+   */
+  it('覆盖上传（取消分支）：确认拒绝后本次上传作废，队列原样保留', async () => {
+    const harness = createHarness()
+    await harness.slicer.addFiles([makeUploadFile('old', [1])])
+    await harness.slicer.processAll(false)
+    const createdBefore = harness.createdUrls.length
+
+    harness.slicer.setReplaceUpload(true)
+    await harness.slicer.addFiles([makeUploadFile('new', [2])], { confirmReplace: async () => false })
+
+    expect(harness.slicer.images.value).toHaveLength(1)
+    expect(harness.slicer.images.value[0]!.baseName).toBe('old')
+    expect(harness.createdUrls.length).toBe(createdBefore) // 新图未创建任何 URL
+  })
+
+  /**
+   * Given：覆盖上传开启、队列图片的切片已完整写出到导出目录（downloaded 标记已置位）
+   * When：addFiles 上传新图
+   * Then：不调用确认回调，直接替换队列（零摩擦覆盖）
+   * 防回归：全已下载仍弹确认违背"全部已下载直接替换"决议（用户故事 9）
+   */
+  it('覆盖上传：队列全部已下载时不提示直接替换', async () => {
+    // picker 在 useImageSlicer 工厂时捕获，必须先注入句柄再创建 harness
+    ;(window as unknown as { showDirectoryPicker: unknown }).showDirectoryPicker = async () => makeGrantedHandle()
+    const harness = createHarness()
+    await harness.slicer.changeExportDirectory()
+    try {
+      await harness.slicer.addFiles([makeUploadFile('old', [1])])
+      await harness.slicer.processAll(true, true) // 自动下载 → 目录直写完整成功
+      expect(harness.slicer.images.value[0]!.downloaded).toBe(true)
+
+      harness.slicer.setReplaceUpload(true)
+      const confirmReplace = vi.fn(async () => {
+        throw new Error('不应弹出确认')
+      })
+      await harness.slicer.addFiles([makeUploadFile('new', [2])], { confirmReplace })
+
+      expect(harness.slicer.images.value).toHaveLength(1)
+      expect(harness.slicer.images.value[0]!.baseName).toBe('new')
+    } finally {
+      delete (window as unknown as { showDirectoryPicker?: unknown }).showDirectoryPicker
+    }
+  })
+
+  /**
+   * Given：队列 2 张图（每图 2 tile）经目录直写完整导出
+   * When：检查 downloaded 标记
+   * Then：两图均被置位——"下载全部"完整写出该图全部 tile 即视为已下载（T03 判定口径）
+   * 防回归：仅逐图下载置位会让覆盖确认对批量导出误报
+   */
+  it('目录直写完整写出后置位每图 downloaded 标记', async () => {
+    ;(window as unknown as { showDirectoryPicker: unknown }).showDirectoryPicker = async () => makeGrantedHandle()
+    const harness = createHarness({ plan: plan2x1() })
+    await harness.slicer.changeExportDirectory()
+    try {
+      await harness.slicer.addFiles([makeUploadFile('first', [1])])
+      await harness.slicer.addFiles([makeUploadFile('second', [2])])
+      await harness.slicer.processAll(true, true)
+
+      expect(harness.slicer.images.value.map((item) => item.downloaded)).toEqual([true, true])
+    } finally {
+      delete (window as unknown as { showDirectoryPicker?: unknown }).showDirectoryPicker
+    }
+  })
+
+  /**
+   * Given：队列 2 张图、目录句柄在写第 3 个文件（第二张图首个 tile）时失败（partial 收尾）
+   * When：writeTilesToDirectory 完成后检查标记
+   * Then：第一张图（全部 tile 已写出）标记置位；第二张图保持未置位——其未完成项走传统重试
+   * 防回归：partial 时无条件全量置位会让未完成图的覆盖确认被跳过（误丢未导出成果）
+   */
+  it('目录直写 partial：仅完整写出的图置位 downloaded', async () => {
+    // tile 写入序列 [first-r1, first-r2, second-r1, second-r2]，第 3 个 create 起失败
+    ;(window as unknown as { showDirectoryPicker: unknown }).showDirectoryPicker = async () => makeGrantedHandle({ failFromIndex: 3 })
+    const harness = createHarness({ plan: plan2x1() })
+    await harness.slicer.changeExportDirectory()
+    try {
+      await harness.slicer.addFiles([makeUploadFile('first', [1])])
+      await harness.slicer.addFiles([makeUploadFile('second', [2])])
+      await harness.slicer.processAll(true, true)
+
+      expect(harness.slicer.images.value[0]!.downloaded).toBe(true)
+      expect(harness.slicer.images.value[1]!.downloaded).toBeUndefined()
+      // 未完成项按剩余项顺序进入待交付下载（ADR-0001 语义不变）
+      expect(harness.slicer.pendingTraditionalDownloads.value).toHaveLength(2)
+    } finally {
+      delete (window as unknown as { showDirectoryPicker?: unknown }).showDirectoryPicker
+    }
+  })
+
+  /**
+   * Given：覆盖上传开启、队列仅剩已下载图片
+   * When：addFiles 上传与旧图同内容标识的文件
+   * Then：内容去重仍然生效——替换后同内容文件不会重复入队
+   * 防回归：覆盖路径绕过内容去重会为同一文件建立重复队列条目
+   */
+  it('覆盖上传与内容去重共存：同内容文件替换后不重复入队', async () => {
+    const harness = createHarness()
+    const file = makeUploadFile('dup', [1])
+    await harness.slicer.addFiles([file])
+    await harness.slicer.processAll(false)
+    harness.slicer.images.value[0]!.downloaded = true // 模拟已下载，跳过确认
+
+    harness.slicer.setReplaceUpload(true)
+    await harness.slicer.addFiles([makeUploadFile('dup', [1])])
+
+    expect(harness.slicer.images.value).toHaveLength(1)
+  })
+
+  /**
+   * Given：真实 File 经 addFiles 入队
+   * When：检查 ImageItem 字段
+   * Then：fileSizeBytes 等于 file.size（T06 原图大小角标数据源）
+   * 防回归：缺失字节数会让原图角标无从显示
+   */
+  it('addFiles 记录原文件字节数 fileSizeBytes', async () => {
+    const harness = createHarness()
+    const file = makeUploadFile('sized', [1, 2, 3, 4, 5, 6, 7, 8])
+
+    await harness.slicer.addFiles([file])
+
+    expect(harness.slicer.images.value[0]!.fileSizeBytes).toBe(file.size)
+  })
+
+  /**
+   * Given：队列 2 张图（img-a/img-b 全局 2x2），img-b 设置覆盖分割线（水平 [0.25]，即 2x1）
+   * When：processAll
+   * Then：img-a 仍按全局 2x2 生成 4 tile；img-b 按覆盖生成 2 tile（矩形几何不同、缓存键不同）；
+   *       覆盖不改变全局 slicePlan
+   * 防回归：每图覆盖若污染全局 slicePlan，未覆盖图片的网格会被连带改写
+   */
+  it('每图网格覆盖仅作用于该图，其余图跟随全局', async () => {
+    const harness = createHarness()
+    harness.addImage('img-a', 'photo-a')
+    harness.addImage('img-b', 'photo-b')
+
+    expect(harness.slicer.setGridOverride('img-b', { horizontalLines: [0.25], verticalLines: [] })).toBe(true)
+    await harness.slicer.processAll(false)
+
+    expect(harness.slicer.images.value[0]!.tiles).toHaveLength(4) // 全局 2x2
+    expect(harness.slicer.images.value[1]!.tiles).toHaveLength(2) // 覆盖 2x1
+    expect(harness.produced.filter((call) => call.key.includes('img-a'))).toHaveLength(4)
+    expect(harness.produced.filter((call) => call.key.includes('img-b'))).toHaveLength(2)
+    // 全局配置未被污染
+    expect(harness.plan.value.horizontalLines).toEqual([0.5])
+  })
+
+  /**
+   * Given：img-b 已按覆盖网格生成并缓存
+   * When：setGridOverride(id, null) 回退全局后 processAll
+   * Then：img-b 按全局 2x2 命中缓存复用 Blob（不重切），覆盖字段归位 null
+   * 防回归：回退后若按覆盖键继续生成或全局键未命中，"一键回退全局"会产生多余重切
+   */
+  it('覆盖回退全局后按全局网格命中缓存', async () => {
+    const harness = createHarness()
+    harness.addImage('img-a', 'photo-a')
+    const itemB = harness.addImage('img-b', 'photo-b')
+    await harness.slicer.processAll(false)
+    const globalBlobs = itemB.tiles.map((tile) => tile.blob)
+    expect(harness.produced).toHaveLength(8)
+
+    harness.slicer.setGridOverride('img-b', { horizontalLines: [0.25], verticalLines: [] })
+    await harness.slicer.processAll(false)
+    expect(harness.slicer.images.value[1]!.tiles).toHaveLength(2) // 覆盖 2x1 重切
+    expect(harness.produced).toHaveLength(10)
+
+    harness.slicer.setGridOverride('img-b', null)
+    await harness.slicer.processAll(false)
+
+    expect(harness.produced).toHaveLength(10) // 回退全局命中首轮条目，无重切
+    expect(harness.slicer.images.value[1]!.tiles).toHaveLength(4)
+    expect(harness.slicer.images.value[1]!.tiles.map((tile) => tile.blob)).toEqual(globalBlobs)
+  })
+
+  /**
+   * Given：含非法分割线值的覆盖输入（超界 1.5、重复、无序）
+   * When：setGridOverride
+   * Then：分割线经 normalizeDividerLines 清洗为有序去重的 0-1 开区间值；
+   *       processing 中拒绝执行（返回 false），未知 id 拒绝执行
+   * 防回归：未清洗的覆盖线会让 computeTileRectsFromLines 产出与全局路径不一致的矩形
+   */
+  it('setGridOverride 清洗分割线且 processing/未知 id 时拒绝', async () => {
+    const harness = createHarness()
+    const item = harness.addImage('img-a', 'photo-a')
+
+    expect(harness.slicer.setGridOverride('img-x', { horizontalLines: [0.5], verticalLines: [] })).toBe(false)
+    harness.slicer.setGridOverride('img-a', { horizontalLines: [0.7, 0.3, 1.5, 0.3], verticalLines: [] })
+    expect(item.gridOverride?.horizontalLines).toEqual([0.3, 0.7])
+
+    // processing 守卫：生成挂起期间调用必须拒绝执行（与删除/排序一致）
+    const pending: Array<(b: Blob | null) => void> = []
+    harness.setGate(() => new Promise<Blob | null>((resolve) => pending.push(resolve)))
+    const run = harness.slicer.processAll(false)
+    await new Promise((r) => setTimeout(r, 0))
+    expect(harness.slicer.state.processing).toBe(true)
+    expect(harness.slicer.setGridOverride('img-a', null)).toBe(false)
+    expect(item.gridOverride?.horizontalLines).toEqual([0.3, 0.7])
+
+    for (;;) {
+      await new Promise((r) => setTimeout(r, 0))
+      if (!pending.length) break
+      pending.shift()!(new Blob(['gate']))
+    }
+    await run
+  })
+
+  /**
+   * Given：一张未下载图片与其 tile 的预览保存路径（已授权目录）
+   * When：savePreviewTile 成功写出该 tile
+   * Then：所属图片的 downloaded 标记置位（T03：预览保存成功同样视为已下载）
+   * 防回归：预览保存不置位会让"只保存过一个切片"的图在覆盖时误报未下载
+   */
+  it('预览保存成功后置位所属图 downloaded 标记', async () => {
+    ;(window as unknown as { showDirectoryPicker: unknown }).showDirectoryPicker = async () => makeGrantedHandle()
+    const harness = createHarness({ plan: plan2x1() })
+    await harness.slicer.changeExportDirectory()
+    try {
+      await harness.slicer.addFiles([makeUploadFile('first', [1])])
+      await harness.slicer.processAll(false)
+      expect(harness.slicer.images.value[0]!.downloaded).toBeUndefined()
+
+      const tileId = harness.slicer.images.value[0]!.tiles[0]!.id
+      const result = await harness.slicer.savePreviewTile(tileId)
+
+      expect(result).toBe('saved')
+      expect(harness.slicer.images.value[0]!.downloaded).toBe(true)
+    } finally {
+      delete (window as unknown as { showDirectoryPicker?: unknown }).showDirectoryPicker
+    }
+  })
+
+  /**
+   * Given：逐图下载路径（无目录选择器，传统下载）
+   * When：downloadSingleImage 成功触发该图全部切片下载
+   * Then：该图 downloaded 标记置位
+   * 防回归：逐图下载不置位会让覆盖确认误判"未下载"
+   */
+  it('逐图下载成功触发后置位 downloaded 标记', async () => {
+    const harness = createHarness({ plan: plan1x1() })
+    const item = harness.addImage('img-a', 'photo-a')
+    await harness.slicer.processAll(false)
+    expect(item.downloaded).toBeUndefined()
+
+    await harness.slicer.downloadSingleImage(item.id)
+
+    expect(item.downloaded).toBe(true)
+  })
+
+  /**
+   * Given：覆盖上传开启、旧生成 pass 挂起期间经覆盖路径替换整个队列
+   * When：新队列上传完成、旧 pass 迟到结束
+   * Then：旧 pass 作废——不基于新队列回填 finished/manual 状态或导出报告；
+   *       新队列由自身生成轮呈现结果，新图 tiles 完整
+   * 防回归：旧 pass 以"非空新队列"通过既有空队列守卫，会把旧批次的状态/报告
+   *         与 autoDownload 导出动作套在新队列上（回填污染）
+   */
+  it('覆盖上传替换后旧生成 pass 作废，不污染新队列状态', async () => {
+    const harness = createHarness()
+    await harness.slicer.addFiles([makeUploadFile('old', [1])])
+    await harness.slicer.processAll(false)
+    harness.slicer.images.value[0]!.downloaded = true
+
+    harness.slicer.setReplaceUpload(true)
+    const pending: Array<(b: Blob | null) => void> = []
+    harness.setGate(() => new Promise<Blob | null>((resolve) => pending.push(resolve)))
+    // 覆盖上传的清空发生在 processAll 补跑轮启动前：手动构造"清空 + 新图 + 旧 pass 挂起"时序
+    const replacing = harness.slicer.addFiles([makeUploadFile('new', [2])], { confirmReplace: async () => true })
+    await new Promise((r) => setTimeout(r, 0))
+
+    // 放行全部挂起生成（含旧 pass 残留与新队列生成）
+    for (;;) {
+      await new Promise((r) => setTimeout(r, 0))
+      if (!pending.length) break
+      pending.shift()!(new Blob(['gate']))
+    }
+    await replacing
+
+    const item = harness.slicer.images.value[0]
+    expect(harness.slicer.images.value).toHaveLength(1)
+    expect(item!.baseName).toBe('new')
+    expect(item!.tiles).toHaveLength(4)
+  })
+})
+
+// ---------- 测试辅助：真实 File / 已授权目录句柄桩 ----------
+
+/** 构造真实 File（唯一字节内容 → 独立 SHA-256 内容标识，供 addFiles 全链路使用）。 */
+const makeUploadFile = (name: string, bytes: number[]): File =>
+  new File([new Uint8Array(bytes)], `${name}.png`, { type: 'image/png' })
+
+/**
+ * 已授权目录句柄桩：queryPermission/requestPermission 恒 granted；每个新文件名首个
+ * getFileHandle 探测抛 NotFoundError（名字可用），create 写入成功。
+ * failFromIndex 指定从第 n 次 create 起失败（模拟 partial 收尾）。
+ */
+const makeGrantedHandle = (options: { failFromIndex?: number } = {}) => {
+  let probeCalls = 0
+  let createCalls = 0
+  return {
+    queryPermission: async () => 'granted' as PermissionState,
+    requestPermission: async () => 'granted' as PermissionState,
+    getFileHandle: (_name: string, createOptions?: { create?: boolean }) => {
+      if (createOptions?.create) {
+        createCalls += 1
+        if (options.failFromIndex !== undefined && createCalls >= options.failFromIndex) {
+          return Promise.reject(new Error('disk full'))
+        }
+        return Promise.resolve({
+          createWritable: async () => ({
+            write: async () => {},
+            close: async () => {},
+          }),
+        })
+      }
+      probeCalls += 1
+      return Promise.reject(new DOMException('nf', 'NotFoundError'))
+    },
+  }
+}

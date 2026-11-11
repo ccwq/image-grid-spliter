@@ -12,6 +12,8 @@ interface Props {
   githubUrl: string
   /** 当前外观（亮/暗）：决定主题切换按钮展示“切到亮色”还是“切到暗色”的图标。 */
   colorScheme: ColorScheme
+  /** 覆盖上传开关（T03）：决定 header checkbox 勾选态。 */
+  replaceUpload: boolean
   /** 状态条：当前网格描述（如 “3 列 x 5 行”）。 */
   gridDescription: string
   /** 状态条：按当前网格可生成的切片数量。 */
@@ -34,6 +36,7 @@ const emit = defineEmits<{
   (e: 'toggleColorScheme'): void
   (e: 'trigger-downloads'): void
   (e: 'reset'): void
+  (e: 'change-replace-upload', value: boolean): void
 }>()
 
 const onLocaleChange = (event: Event) => {
@@ -69,6 +72,15 @@ const onLocaleChange = (event: Event) => {
       <span class="summary-item summary-item-status" aria-live="polite" :title="`${props.tr.stats.downloadStatus} ${props.statusText}`">{{ props.statusText }}</span>
     </p>
     <div class="header-actions">
+      <!-- 覆盖上传开关（T03）：勾选后新上传/拖入替换整个队列；确认交互在 App.vue 的 addFiles confirmReplace。 -->
+      <label class="header-replace-toggle" :title="props.tr.buttons.replaceUpload">
+        <input
+          type="checkbox"
+          :checked="props.replaceUpload"
+          @change="emit('change-replace-upload', ($event.target as HTMLInputElement).checked)"
+        />
+        <span>{{ props.tr.buttons.replaceUpload }}</span>
+      </label>
       <button v-if="props.hasTiles" class="ghost header-action" type="button" :aria-label="props.tr.buttons.reDownload" :title="props.tr.buttons.reDownload" @click="emit('trigger-downloads')">
         <Icon :icon="props.icons.redo ?? ''" class="btn-icon" aria-hidden="true" />
         <span>{{ props.tr.buttons.reDownload }}</span>
@@ -109,6 +121,10 @@ const onLocaleChange = (event: Event) => {
 .brand { min-width: 0; gap: 8px; }
 .header-actions { justify-self: end; gap: 6px; }
 .header-actions > * { align-self: center; flex: 0 0 auto; }
+/* 覆盖上传开关：紧凑 checkbox + 标签，与状态条视觉层级区分。 */
+.header-replace-toggle { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 6px; border: 1px solid var(--color-border); border-radius: 7px; color: var(--color-text-muted); font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.header-replace-toggle input { width: 14px; height: 14px; margin: 0; }
+@media (max-width: 959px) { .header-replace-toggle span { display: none; } .header-replace-toggle { width: 32px; min-width: 32px; height: 32px; justify-content: center; padding: 0; } }
 .lang-switcher { gap: 4px; height: 28px; padding: 0 6px; border-radius: 7px; }
 .logo-mark { display: grid; flex: 0 0 28px; width: 28px; height: 28px; place-items: center; border-radius: 7px; line-height: 0; }
 .logo-mark img { display: block; width: 22px; height: 22px; }

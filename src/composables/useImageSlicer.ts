@@ -1,6 +1,6 @@
 import imageCompression from 'browser-image-compression'
 import { computed, reactive, ref } from 'vue'
-import { computeTileRectsFromLines, type GridPreset, type SlicePlan, type TileRect } from '../utils/grid'
+import { computeTileRectsFromLines, normalizeDividerLines, type GridPreset, type SlicePlan, type TileRect } from '../utils/grid'
 import type { LocaleMessages, ExportFormat } from './useLocale'
 import { useDirectoryExport, type SaveAsResult } from './useDirectoryExport'
 import { fileSha256 } from "../utils/fileUtils.ts";
@@ -36,6 +36,24 @@ export interface ImageItem {
    * 可选字段：保持既有构造方（组件测试、旧调用方）无需感知即可编译。
    */
   tilesKey?: string | null
+  /** 原文件字节数（addFiles 时记录 file.size，供结果区大小角标显示） */
+  fileSizeBytes?: number
+  /**
+   * 是否已将本图切片写出到用户设备：逐图下载成功触发、"下载全部"完整写完本图、
+   * 预览保存成功后置位。覆盖上传以此判定是否需要替换确认；不持久化，随队列清空消失。
+   */
+  downloaded?: boolean
+  /**
+   * 每图网格覆盖：分割线（归一化 0-1 比例，与 SlicePlan 同构）。
+   * 存在时本图按覆盖网格生成，null/undefined 回退全局 slicePlan；不持久化。
+   */
+  gridOverride?: GridOverride | null
+}
+
+/** 每图网格覆盖载荷：仅网格身份（分割线），不含边线擦除（仍为全局配置）。 */
+export interface GridOverride {
+  horizontalLines: number[]
+  verticalLines: number[]
 }
 
 export type StatusKey =
@@ -88,8 +106,9 @@ export interface GenerationParams {
  * 测试注入等价桩实现，避免依赖真实 Canvas、压缩 worker 与浏览器下载。
  */
 export interface SliceEnvironment {
-  /** 生效矩形计算（默认：computeTileRectsFromLines；过滤与 roundTileRect 整数化统一在快照层做） */
-  resolveRects(image: Pick<HTMLImageElement, 'naturalWidth' | 'naturalHeight'>): TileRect[]
+  /** 生效矩形计算（默认：computeTileRectsFromLines；过滤与 roundTileRect 整数化统一在快照层做）。
+   *  overrideLines 为该图的每图网格覆盖（归一化分割线），缺省时按全局 slicePlan 计算。 */
+  resolveRects(image: Pick<HTMLImageElement, 'naturalWidth' | 'naturalHeight'>, overrideLines?: GridOverride): TileRect[]
   /** 单矩形 → tile Blob（只允许消费 GenerationParams 快照；返回 null 表示无法产出，结果视为不完整） */
   produceTile(image: HTMLImageElement, rect: TileRect, params: GenerationParams): Promise<Blob | null>
   createObjectUrl(blob: Blob): string
@@ -109,11 +128,29 @@ interface ImageSlicerDeps {
   cache?: SliceResultCache
   /** 测试接缝：覆写部分生成环境实现；缺省合并到默认实现上 */
   environment?: Partial<SliceEnvironment>
+  /** 测试接缝：注入存储（内存实现或 null 禁用持久化）；缺省安全回退 window.localStorage */
+  storage?: Storage | null
+  /**
+   * 覆盖上传确认回调（T03）：队列存在未下载图片且 replaceUpload 开启时，
+   * onFileChange/onDrop 等内部上传路径经此请求用户确认；resolve(false) 取消本次上传。
+   * 缺省直接同意（纯 composable 消费方无需 UI）；App.vue 注入 window.confirm 实现。
+   */
+  confirmReplacePrompt?: () => Promise<boolean>
 }
 
 export type PreviewSaveResult = 'saved' | 'fallback' | 'missing'
 
+/** addFiles 可选项：覆盖上传的确认回调接缝（T03 决议），组件层实现 confirm UI。 */
+export interface AddFilesOptions {
+  /** 队列存在未下载图片时的确认回调；resolve(true) = 同意替换，false = 取消。缺省直接同意。 */
+  confirmReplace?: () => Promise<boolean>
+}
+
 const AUTO_DOWNLOAD_KEY = 'igs:auto-download'
+/** 下载全部遍历顺序开关（false = 正序）；独立键，不并入既有导出设置载荷 */
+const DOWNLOAD_REVERSE_KEY = 'igs:download-reverse'
+/** 覆盖上传开关（false = 追加）；独立键，与 T02 同风格持久化 */
+const REPLACE_UPLOAD_KEY = 'igs:replace-upload'
 
 /** ensure 钩子：进度计数与取消/失效判定（shouldCancel 同时承担"条目已脱离队列"的放弃判定）。 */
 interface EnsureHooks {
@@ -121,10 +158,21 @@ interface EnsureHooks {
   shouldCancel?: () => boolean
 }
 
-export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQuality, gridDescription, currentMessages, cache: injectedCache, environment: environmentOverrides }: ImageSlicerDeps) {
+export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQuality, gridDescription, currentMessages, cache: injectedCache, environment: environmentOverrides, storage: injectedStorage, confirmReplacePrompt: injectedConfirmReplacePrompt }: ImageSlicerDeps) {
   const fileInput = ref<HTMLInputElement | null>(null)
   const images = ref<ImageItem[]>([])
   const autoDownload = ref(false)
+  const downloadReverse = ref(false)
+  const replaceUpload = ref(false)
+  // 注入存储优先；缺省安全读取 window.localStorage（隐私模式可能抛异常），不可用时静默降级内存态
+  const storage: Storage | null = (() => {
+    if (injectedStorage !== undefined) return injectedStorage
+    try {
+      return typeof window === 'undefined' ? null : window.localStorage
+    } catch {
+      return null
+    }
+  })()
   const directoryExport = useDirectoryExport()
   const pendingTraditionalDownloads = ref<TileResult[] | null>(null)
   const exportProgress = reactive<ExportProgress>({ phase: 'hidden', current: 0, total: 0, report: null })
@@ -222,25 +270,44 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
     if (!report.pending) progressDismissTimer = setTimeout(dismissExportProgress, 5000)
   }
 
-  const persistAutoDownload = () => {
+  /** 读写 localStorage 的统一降级封装：存储不可用时静默忽略/回退默认值。 */
+  const readFlag = (key: string): boolean => {
     try {
-      localStorage.setItem(AUTO_DOWNLOAD_KEY, autoDownload.value ? '1' : '0')
+      return storage?.getItem(key) === '1'
+    } catch {
+      return false
+    }
+  }
+
+  const writeFlag = (key: string, value: boolean) => {
+    try {
+      storage?.setItem(key, value ? '1' : '0')
     } catch {
       // ignore storage errors
     }
   }
 
+  const persistAutoDownload = () => writeFlag(AUTO_DOWNLOAD_KEY, autoDownload.value)
+
   const restoreAutoDownload = () => {
-    try {
-      autoDownload.value = localStorage.getItem(AUTO_DOWNLOAD_KEY) === '1'
-    } catch {
-      autoDownload.value = false
-    }
+    autoDownload.value = readFlag(AUTO_DOWNLOAD_KEY)
   }
 
   const setAutoDownload = (val: boolean) => {
     autoDownload.value = val
     persistAutoDownload()
+  }
+
+  /** 下载全部遍历顺序开关：写独立键，刷新后恢复上次选择 */
+  const setDownloadReverse = (val: boolean) => {
+    downloadReverse.value = val
+    writeFlag(DOWNLOAD_REVERSE_KEY, val)
+  }
+
+  /** 覆盖上传开关：写独立键，刷新后恢复上次选择 */
+  const setReplaceUpload = (val: boolean) => {
+    replaceUpload.value = val
+    writeFlag(REPLACE_UPLOAD_KEY, val)
   }
 
   const stripExtension = (name: string) => name.replace(/\.[^.]+$/, '') || 'tile'
@@ -261,8 +328,20 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
     })
 
   const defaultEnvironment: SliceEnvironment = {
-    // 仅读取尺寸与 slicePlan；实际过滤/取整在快照层统一执行
-    resolveRects: (image) => computeTileRectsFromLines(image.naturalWidth, image.naturalHeight, slicePlan.value),
+    // 仅读取尺寸与生效网格（每图覆盖 ?? 全局 slicePlan）；实际过滤/取整在快照层统一执行。
+    // 覆盖仅含分割线：边线擦除不进入单图设置，覆盖 plan 固定 padding=0、不裁外边缘
+    resolveRects: (image, overrideLines) => {
+      const plan: SlicePlan = overrideLines
+        ? {
+            horizontalLines: overrideLines.horizontalLines,
+            verticalLines: overrideLines.verticalLines,
+            padding: 0,
+            paddingUnit: 'percent',
+            trimOuterEdges: false,
+          }
+        : slicePlan.value
+      return computeTileRectsFromLines(image.naturalWidth, image.naturalHeight, plan)
+    },
     // 只消费快照参数：循环内绝不重读 exportFormat/jpgQuality 响应式值
     produceTile: async (image, rect, params) => {
       const canvas = document.createElement('canvas')
@@ -299,11 +378,12 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
 
   // ---------- 快照 / 物料化 / 原子换装 ----------
 
-  /** 生效参数快照：响应式设置在此处只读一次；矩形经共享 roundTileRect 整数化（键与绘制同值）。 */
+  /** 生效参数快照：响应式设置在此处只读一次；矩形经共享 roundTileRect 整数化（键与绘制同值）。
+   *  生效网格 = item.gridOverride ?? 全局 slicePlan——缓存键已含实际矩形，覆盖图天然区别于全局图。 */
   const snapshotParams = (item: ImageItem): GenerationParams => {
     const format = exportFormat.value
     const rects = environment
-      .resolveRects(item.image)
+      .resolveRects(item.image, item.gridOverride ?? undefined)
       .filter((rect) => rect.width > 0 && rect.height > 0)
       .map(roundTileRect)
     return {
@@ -460,13 +540,65 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
 
   const triggerFileSelect = () => fileInput.value?.click()
 
+  // ---------- 队列操作：删除 / 排序（processing 守卫，与"下载此图片"一致） ----------
+
+  /**
+   * 从队列移除一张图片：回收该图 objectUrl 与其 tiles 的 previewUrl；
+   * 切片缓存条目保留——同内容图片重新拖入时经内容 SHA-256 命中缓存（T01 决议）。
+   * 返回 false 表示未执行（找不到该 id 或 processing 中）。
+   */
+  const removeImage = (id: string): boolean => {
+    if (state.processing) return false
+    const index = images.value.findIndex((item) => item.id === id)
+    if (index === -1) return false
+    const [item] = images.value.splice(index, 1)
+    cleanupItem(item)
+    // 队列因此变空时复位 waiting（与 resetApp 的空队列终态一致；此时必然不处于 processing）
+    if (!images.value.length) setStatus('waiting')
+    return true
+  }
+
+  /**
+   * 交换图片与相邻位置的顺序（delta -1 = 上移 / +1 = 下移），仅改变遍历顺序，
+   * 不触碰 tiles、URL 与缓存。返回 false 表示未执行（找不到 id、越界或 processing 中）。
+   */
+  const moveImage = (id: string, delta: -1 | 1): boolean => {
+    if (state.processing) return false
+    const index = images.value.findIndex((item) => item.id === id)
+    if (index === -1) return false
+    const target = index + delta
+    if (target < 0 || target >= images.value.length) return false
+    const next = [...images.value]
+    ;[next[index], next[target]] = [next[target], next[index]]
+    images.value = next
+    return true
+  }
+
+  /**
+   * 导出遍历顺序：按 downloadReverse 开关返回反转后的队列副本（队列本身不动，T02 决议）。
+   * 逐图下载等单元素调用在调用方长度守卫下不受影响；目录直写失败重试仍按剩余项
+   * 顺序消费 pending（不经过本函数），ADR-0001 语义不变。
+   */
+  const exportOrderedItems = (items: readonly ImageItem[]): ImageItem[] =>
+    downloadReverse.value ? [...items].reverse() : [...items]
+
+  /** 已下载标记（T03 覆盖确认判定依据）：切片写出到用户设备成功后置位；不持久化。 */
+  const markDownloaded = (item: ImageItem) => {
+    item.downloaded = true
+  }
+
   // ---------- 下载/写入（消费已物料化 tiles，行为不变） ----------
 
   const downloadTiles = async (items: ImageItem[], trackProgress = false) => {
-    const allTiles = items.flatMap((item) => item.tiles)
+    // 遍历顺序副本：逆序开关仅影响触发顺序，队列本身不动（T02）；单元素调用不受影响
+    const orderedItems = exportOrderedItems(items)
+    const allTiles = orderedItems.flatMap((item) => item.tiles)
     if (!allTiles.length) return
     setStatus('batchDownloading')
     if (trackProgress) beginExportProgress('downloading', allTiles.length)
+    // tile → 所属图映射：逐 tile 触发成功后按所属图置位已下载标记（含"下载全部"参与，T03）
+    const ownerOfTile = new Map<TileResult, ImageItem>()
+    orderedItems.forEach((item) => item.tiles.forEach((tile) => ownerOfTile.set(tile, item)))
     for (const [index, tile] of allTiles.entries()) {
       const link = document.createElement('a')
       link.href = tile.previewUrl
@@ -476,6 +608,8 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
       document.body.appendChild(link)
       link.click()
       link.remove()
+      const owner = ownerOfTile.get(tile)
+      if (owner) markDownloaded(owner)
       if (trackProgress) updateExportProgress(index + 1, allTiles.length)
       await new Promise((r) => setTimeout(r, 80))
     }
@@ -484,7 +618,10 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
   }
 
   const writeTilesToDirectory = async (items: ImageItem[], trackProgress = false) => {
-    const files = items.flatMap((item) => item.tiles).map((tile) => ({ name: tile.name, blob: tile.blob, tile }))
+    // 遍历顺序副本：逆序开关仅影响写入顺序，队列本身不动（T02）；
+    // 目录直写失败重试（retryPendingTraditionalDownloads）按剩余项顺序消费，不经过本开关
+    const orderedItems = exportOrderedItems(items)
+    const files = orderedItems.flatMap((item) => item.tiles).map((tile) => ({ name: tile.name, blob: tile.blob, tile }))
     if (!files.length) return
     setStatus('batchDownloading')
     if (trackProgress) beginExportProgress('saving', files.length)
@@ -494,12 +631,21 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
     // 重置/清空竞态守卫：await 期间队列已被清空（resetApp 已置 waiting 并清空待交付下载），
     // 不回填 pendingTraditionalDownloads、不覆盖状态、不补发导出报告
     if (!images.value.length) return
+    // tile → 所属图映射：目录直写成功后按"该图全部 tile 均已写出"置位已下载标记（T03）。
+    // partial 时同样对已完整写出的图置位——失败的最后一项按剩余项顺序走传统重试。
+    const ownerOfTile = new Map<TileResult, ImageItem>()
+    orderedItems.forEach((item) => item.tiles.forEach((tile) => ownerOfTile.set(tile, item)))
     if (result.kind === 'partial') {
+      result.written.forEach((file) => {
+        const owner = ownerOfTile.get(file.tile)
+        if (owner && owner.tiles.every((tile) => result.written.some((written) => written.tile === tile))) markDownloaded(owner)
+      })
       pendingTraditionalDownloads.value = result.pending.map((file) => file.tile)
       setStatus('triggered', { count: result.written.length })
       if (trackProgress) completeExportProgress({ mode: 'directory', completed: result.written.length, total: files.length, renamed: result.renamed, pending: result.pending.length })
       return
     }
+    orderedItems.forEach(markDownloaded)
     pendingTraditionalDownloads.value = null
     setStatus('triggered', { count: result.written.length })
     if (trackProgress) completeExportProgress({ mode: 'directory', completed: result.written.length, total: files.length, renamed: result.renamed, pending: 0 })
@@ -542,9 +688,11 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
       if (state.cancelRequested || !isLive()) break
     }
 
-    // 重置/清空竞态：队列已空则维持 waiting，不覆盖状态也不触发导出
-    if (!images.value.length) {
-      setStatus('waiting')
+    // 重置/覆盖上传竞态：队列已空（resetApp/清除）或本轮批次已有条目脱离队列
+    // （覆盖上传清空后同链路加入新图）时本轮作废——不基于新队列回填状态与报告，
+    // 新队列由其自身的生成轮负责呈现
+    if (!images.value.length || !batch.every((item) => images.value.includes(item))) {
+      if (!images.value.length) setStatus('waiting')
       return
     }
     const shownTiles = images.value.reduce((sum, item) => sum + item.tiles.length, 0)
@@ -598,7 +746,18 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
     }
   }
 
-  const addFiles = async (files: FileList | File[]) => {
+  /** 覆盖上传的清空语义：等效 resetApp 但保留缓存条目（T01/T03 决议——缓存不清）。 */
+  const clearQueueKeepCache = () => {
+    cleanupAll()
+    pendingTraditionalDownloads.value = null
+  }
+
+  /**
+   * 上传入口：默认追加；replaceUpload 开启且队列非空时按 T03 决议覆盖整个队列——
+   * 全部已下载（或队列为空）直接替换；存在未下载图片先经 confirmReplace 确认，取消则本次上传作废。
+   * 处理中到达按既有 latest-wins 补跑守卫处理（清空会在生成 pass 的 isLive 守卫中被识别）。
+   */
+  const addFiles = async (files: FileList | File[], options: AddFilesOptions = {}) => {
     const fileArray = Array.from(files)
     const imageFiles = fileArray.filter((file) => file.type.startsWith('image/'))
 
@@ -607,6 +766,15 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
     }
     if (!imageFiles.length) {
       return
+    }
+
+    // 覆盖上传：先决断替换语义，再清空队列、后加入新图（确认取消则整体作废，不改动队列）
+    if (replaceUpload.value && images.value.length) {
+      const allDownloaded = images.value.every((item) => item.downloaded)
+      const confirmed = allDownloaded || await (options.confirmReplace ?? injectedConfirmReplacePrompt ?? (async () => true))()
+      if (!confirmed) return
+      // 处理中上传复用既有重置竞态守卫路径：清空后 pass 的 isLive 守卫会放弃旧工作
+      clearQueueKeepCache()
     }
 
     setStatus('loading')
@@ -629,6 +797,8 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
           objectUrl,
           image: img,
           size: { width: img.naturalWidth, height: img.naturalHeight },
+          // 原文件字节数：结果区原图大小角标的显示依据（T06）
+          fileSizeBytes: file.size,
           tiles: [],
         })
       } catch (err) {
@@ -657,7 +827,13 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
     if (!pendingTraditionalDownloads.value?.length) return
     const pending = pendingTraditionalDownloads.value
     pendingTraditionalDownloads.value = null
+    // ADR-0001：重试按剩余项顺序逐张触发，不经过逆序开关
     await downloadTiles([{ tiles: pending } as ImageItem], true)
+    // 伪条目不在队列中，downloadTiles 只能标记到它；此处按真实所属图补置已下载标记
+    pending.forEach((tile) => {
+      const owner = images.value.find((item) => item.tiles.includes(tile))
+      if (owner) markDownloaded(owner)
+    })
   }
 
   const changeExportDirectory = async () => {
@@ -670,12 +846,43 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
     if (!tile) return 'missing'
     if (!await directoryExport.canAutoExport()) return 'fallback'
     const result = await directoryExport.writeFiles([{ name: tile.name, blob: tile.blob }])
-    return result.kind === 'complete' && result.written.length === 1 ? 'saved' : 'fallback'
+    if (result.kind === 'complete' && result.written.length === 1) {
+      // 预览保存成功同样置位已下载标记（T03：写出用户设备即视为已下载）
+      const owner = images.value.find((image) => image.tiles.includes(tile))
+      if (owner) markDownloaded(owner)
+      return 'saved'
+    }
+    return 'fallback'
   }
 
   const savePreviewTileAs = async (id: string): Promise<SaveAsResult | 'missing'> => {
     const tile = images.value.flatMap((image) => image.tiles).find((item) => item.id === id)
-    return tile ? directoryExport.saveFileAs({ name: tile.name, blob: tile.blob }) : 'missing'
+    if (!tile) return 'missing'
+    const result = await directoryExport.saveFileAs({ name: tile.name, blob: tile.blob })
+    if (result === 'saved') {
+      const owner = images.value.find((image) => image.tiles.includes(tile))
+      if (owner) markDownloaded(owner)
+    }
+    return result
+  }
+
+  /**
+   * 每图网格覆盖（T04）：override 为 null 回退全局网格；设置后该图按最新参数重算——
+   * tilesKey 已不匹配当前生效键，processAll/ensureTiles 走既有 缓存命中/生成 路径。
+   * 覆盖仅含分割线（归一化 0-1），经 normalizeDividerLines 清洗；边线擦除不进入单图设置。
+   * processing 中拒绝（与删除/排序一致，不引入新的在途生成竞态路径），返回是否执行。
+   */
+  const setGridOverride = (id: string, override: GridOverride | null): boolean => {
+    if (state.processing) return false
+    const item = images.value.find((el) => el.id === id)
+    if (!item) return false
+    item.gridOverride = override
+      ? {
+          horizontalLines: normalizeDividerLines(override.horizontalLines),
+          verticalLines: normalizeDividerLines(override.verticalLines),
+        }
+      : null
+    return true
   }
 
   const downloadSingleImage = async (id: string) => {
@@ -705,6 +912,8 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
       if (!isLive()) return
       if (fresh) swapTiles(target, fresh, params.key)
       setStatus('manual', { count: target.tiles.length, grid: gridDescription.value })
+      // 逐图下载成功触发后置位已下载标记（T03 覆盖确认判定依据）
+      markDownloaded(target)
       await downloadTiles([target], true)
     } catch (err) {
       setError('processingFailed', err instanceof Error ? err.message : '')
@@ -751,8 +960,10 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
     if (files && files.length) await addFiles(files)
   }
 
-  // 初始化持久化的自动下载开关
+  // 初始化持久化开关：自动下载 / 下载逆序 / 覆盖上传（存储不可用时保持默认值）
   restoreAutoDownload()
+  downloadReverse.value = readFlag(DOWNLOAD_REVERSE_KEY)
+  replaceUpload.value = readFlag(REPLACE_UPLOAD_KEY)
   void directoryExport.restore()
 
   return {
@@ -760,12 +971,19 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
     images,
     totalTiles,
     autoDownload,
+    downloadReverse,
+    replaceUpload,
     firstImageSize,
     state,
     statusText,
     statusState,
     setStatus,
     setAutoDownload,
+    setDownloadReverse,
+    setReplaceUpload,
+    removeImage,
+    moveImage,
+    setGridOverride,
     setError,
     clearError,
     cleanupAll,
@@ -794,5 +1012,6 @@ export function useImageSlicer({ selectedPreset, slicePlan, exportFormat, jpgQua
     handleGlobalDragOver,
     handleGlobalDrop,
     triggerFileSelect,
+    clearQueueKeepCache,
   }
 }

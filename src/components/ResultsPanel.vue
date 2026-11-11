@@ -25,7 +25,23 @@ const emit = defineEmits<{
   (e: 'preview-tile', id: string): void
   (e: 'toggle-collapsed'): void
   (e: 'retry-pending-downloads'): void
+  (e: 'remove-image', id: string): void
+  (e: 'move-image', id: string, delta: -1 | 1): void
+  (e: 'set-grid-override', id: string, override: { horizontalLines: number[]; verticalLines: number[] } | null): void
+  (e: 'open-image-settings', id: string): void
+  (e: 'trigger-clear-all'): void
 }>()
+
+/** 网格覆盖描述：有覆盖的图显示覆盖行列描述，无覆盖显示"跟随全局网格"。 */
+const gridLabelFor = (image: ImageItem) => {
+  const override = image.gridOverride
+  if (!override) return props.tr.grid.perImageFollowsGlobal
+  return props.tr.format.gridDescription(override.verticalLines.length + 1, override.horizontalLines.length + 1)
+}
+/** 文件大小角标文本：无字节数据（旧构造方）不渲染。 */
+const sizeLabel = (bytes?: number) => typeof bytes === 'number' ? props.tr.format.fileSize(bytes) : ''
+const firstIndex = (image: ImageItem) => props.images.findIndex((el) => el.id === image.id) === 0
+const lastIndex = (image: ImageItem) => props.images.findIndex((el) => el.id === image.id) === props.images.length - 1
 </script>
 
 <template>
@@ -53,6 +69,10 @@ const emit = defineEmits<{
           <Icon :icon="props.icons.download" class="btn-icon" aria-hidden="true" />
           {{ props.tr.buttons.downloadAll }}
         </button>
+        <!-- 清除所有第二入口（T05）：移动端摘要旁，confirm 由 App.vue 承担 -->
+        <button class="ghost compact-result-action clear-all-action" type="button" :disabled="props.processing" @click="emit('trigger-clear-all')">
+          <span>{{ props.tr.buttons.clearAll }}</span>
+        </button>
         <div v-if="props.pendingTraditionalDownloads" class="export-retry">
           <p class="muted small">{{ props.tr.results.partialExport(props.pendingTraditionalDownloads.written, props.pendingTraditionalDownloads.pending) }}</p>
           <button class="ghost" type="button" :disabled="props.processing" @click="emit('retry-pending-downloads')">{{ props.tr.results.retryTraditionalDownload }}</button>
@@ -67,9 +87,13 @@ const emit = defineEmits<{
             {{ props.tr.results.original }}
           </p>
           <div class="preview-box">
+            <!-- 原图文件大小角标：常显小字（T06），无字节数据时不渲染 -->
             <img :src="image.objectUrl" :alt="image.baseName" />
+            <span v-if="sizeLabel(image.fileSizeBytes)" class="size-badge">{{ sizeLabel(image.fileSizeBytes) }}</span>
           </div>
           <p class="muted meta">{{ image.baseName }} · {{ image.size.width }} x {{ image.size.height }}</p>
+          <!-- 每图网格描述（T04）：覆盖图显示覆盖行列，未覆盖显示跟随全局 -->
+          <p class="muted meta">{{ gridLabelFor(image) }}</p>
         </div>
         <div class="tiles-card">
           <div class="tiles-header">
@@ -77,15 +101,32 @@ const emit = defineEmits<{
               <p class="muted image-tile-count">{{ props.tr.format.tilesHeading(image.tiles.length) }}</p>
             </div>
             <div class="tiles-actions">
+              <button class="ghost compact-result-action" type="button" :disabled="props.processing" :aria-label="props.tr.buttons.imageSettings" :title="props.tr.buttons.imageSettings" @click="emit('open-image-settings', image.id)">
+                <Icon :icon="props.icons.sliders ?? ''" class="btn-icon" aria-hidden="true" />
+                <span>{{ props.tr.buttons.imageSettings }}</span>
+              </button>
               <button class="ghost compact-result-action" type="button" :disabled="props.processing" :aria-label="props.tr.buttons.downloadImage" :title="props.tr.buttons.downloadImage" @click="emit('download-image', image.id)">
                 <Icon :icon="props.icons.download" class="btn-icon" aria-hidden="true" />
                 <span>{{ props.tr.buttons.downloadImage }}</span>
               </button>
             </div>
           </div>
+          <div class="queue-actions">
+            <button class="ghost icon-only" type="button" :disabled="props.processing || firstIndex(image)" :aria-label="props.tr.buttons.moveImageUp" :title="props.tr.buttons.moveImageUp" @click="emit('move-image', image.id, -1)">
+              <Icon :icon="props.icons.arrowUp ?? ''" class="btn-icon" aria-hidden="true" />
+            </button>
+            <button class="ghost icon-only" type="button" :disabled="props.processing || lastIndex(image)" :aria-label="props.tr.buttons.moveImageDown" :title="props.tr.buttons.moveImageDown" @click="emit('move-image', image.id, 1)">
+              <Icon :icon="props.icons.arrowDown ?? ''" class="btn-icon" aria-hidden="true" />
+            </button>
+            <button class="ghost icon-only danger-action" type="button" :disabled="props.processing" :aria-label="props.tr.buttons.removeImage" :title="props.tr.buttons.removeImage" @click="emit('remove-image', image.id)">
+              <Icon :icon="props.icons.trash ?? ''" class="btn-icon" aria-hidden="true" />
+            </button>
+          </div>
           <div v-if="image.tiles.length" class="tiles-grid">
             <div v-for="tile in image.tiles" :key="tile.id" class="tile" @click="emit('preview-tile', tile.id)">
+              <!-- 切片文件大小角标：blob.size 实时反映格式/质量（T06） -->
               <img :src="tile.previewUrl" :alt="tile.name" loading="lazy" />
+              <span class="size-badge">{{ props.tr.format.fileSize(tile.blob.size) }}</span>
             </div>
           </div>
           <p v-else class="muted">{{ props.tr.results.previewPlaceholder }}</p>
@@ -94,3 +135,15 @@ const emit = defineEmits<{
     </div>
   </section>
 </template>
+
+<style scoped>
+/* 原图/切片大小角标（T06）：叠加左下角、常显小字，紧凑风格。 */
+.preview-box, .tile { position: relative; }
+.size-badge { position: absolute; left: 6px; bottom: 6px; padding: 1px 6px; border-radius: 6px; background: var(--color-surface); border: 1px solid var(--color-border-subtle); color: var(--color-text-muted); font-size: 10px; font-variant-numeric: tabular-nums; pointer-events: none; }
+/* 队列操作行：上移/下移/删除集中在卡片右上区域下方，间距紧凑。 */
+.queue-actions { display: flex; gap: 4px; margin-top: 6px; }
+.danger-action:hover { border-color: var(--color-danger); color: var(--color-danger); }
+.clear-all-action:hover { border-color: var(--color-danger); color: var(--color-danger); }
+/* 移动端保持 40px 触控目标。 */
+@media(max-width:959px){ .queue-actions .icon-only { width: 40px; min-width: 40px; min-height: 40px; } }
+</style>

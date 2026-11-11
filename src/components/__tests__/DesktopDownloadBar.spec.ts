@@ -24,13 +24,13 @@ describe('DesktopDownloadBar', () => {
   it('渲染队列摘要与可用的主“下载全部”按钮', () => {
     const tr = setupZhTr()
     const wrapper = mount(DesktopDownloadBar, {
-      props: { tr, icons, queueCount: 3, autoDownload: true, processing: false },
+      props: { tr, icons, queueCount: 3, autoDownload: true, downloadReverse: false, processing: false },
     })
 
     expect(wrapper.find('aside.desktop-download-bar').attributes('aria-label')).toBe('导出操作')
     expect(wrapper.get('.download-bar-queue').text()).toBe(tr.results.queueSummary(3))
 
-    const checkbox = wrapper.get('input[type="checkbox"]')
+    const checkbox = wrapper.get('.download-bar-auto:not(.download-bar-reverse) input[type="checkbox"]')
     expect((checkbox.element as HTMLInputElement).checked).toBe(true)
     expect(checkbox.attributes('aria-label')).toBe(tr.export.autoDownloadLabel)
     expect(checkbox.attributes('disabled')).toBeUndefined()
@@ -50,14 +50,55 @@ describe('DesktopDownloadBar', () => {
   it('向父级转发自动下载开关与下载全部动作', async () => {
     const tr = setupZhTr()
     const wrapper = mount(DesktopDownloadBar, {
-      props: { tr, icons, queueCount: 2, autoDownload: true, processing: false },
+      props: { tr, icons, queueCount: 2, autoDownload: true, downloadReverse: false, processing: false },
     })
 
-    await wrapper.get('input[type="checkbox"]').setValue(false)
+    await wrapper.get('.download-bar-auto:not(.download-bar-reverse) input[type="checkbox"]').setValue(false)
     expect(wrapper.emitted('toggle-auto-download')?.[0]).toEqual([false])
 
     await wrapper.get('button.download-bar-all').trigger('click')
     expect(wrapper.emitted('trigger-downloads')).toHaveLength(1)
+  })
+
+  /**
+   * Given：逆序开关关闭、未处理中
+   * When：用户勾选逆序开关
+   * Then：发出 toggle-download-reverse 携带 true；勾选态反映 downloadReverse prop
+   * 防回归：T02 逆序遍历依赖此事件同步 useImageSlicer.downloadReverse，事件丢失会让逆序永远不生效
+   */
+  it('逆序开关转发 toggle-download-reverse', async () => {
+    const tr = setupZhTr()
+    const wrapper = mount(DesktopDownloadBar, {
+      props: { tr, icons, queueCount: 2, autoDownload: false, downloadReverse: false, processing: false },
+    })
+
+    const reverse = wrapper.get('.download-bar-reverse input[type="checkbox"]')
+    expect((reverse.element as HTMLInputElement).checked).toBe(false)
+    await reverse.setValue(true)
+    expect(wrapper.emitted('toggle-download-reverse')?.[0]).toEqual([true])
+  })
+
+  /**
+   * Given：队列非空、未处理中
+   * When：用户点击“清除所有”
+   * Then：发出 trigger-clear-all；处理中按钮禁用且不发出事件
+   * 防回归：T05 第二清除入口；处理中允许清除会与在途导出竞态
+   */
+  it('清除所有转发事件且处理中禁用', async () => {
+    const tr = setupZhTr()
+    const wrapper = mount(DesktopDownloadBar, {
+      props: { tr, icons, queueCount: 2, autoDownload: false, downloadReverse: false, processing: false },
+    })
+
+    const clear = wrapper.get('button.download-bar-clear')
+    expect(clear.text()).toBe(tr.buttons.clearAll)
+    await clear.trigger('click')
+    expect(wrapper.emitted('trigger-clear-all')).toHaveLength(1)
+
+    const processingWrapper = mount(DesktopDownloadBar, {
+      props: { tr, icons, queueCount: 2, autoDownload: false, downloadReverse: false, processing: true },
+    })
+    expect(processingWrapper.get('button.download-bar-clear').element.disabled).toBe(true)
   })
 
   /**
@@ -69,12 +110,14 @@ describe('DesktopDownloadBar', () => {
   it('处理中禁用自动下载开关与主按钮', async () => {
     const tr = setupZhTr()
     const wrapper = mount(DesktopDownloadBar, {
-      props: { tr, icons, queueCount: 2, autoDownload: false, processing: true },
+      props: { tr, icons, queueCount: 2, autoDownload: false, downloadReverse: false, processing: true },
     })
 
-    const checkbox = wrapper.get('input[type="checkbox"]')
+    const checkbox = wrapper.get('.download-bar-auto:not(.download-bar-reverse) input[type="checkbox"]')
+    const reverse = wrapper.get('.download-bar-reverse input[type="checkbox"]')
     const primary = wrapper.get('button.download-bar-all')
     expect(checkbox.element.disabled).toBe(true)
+    expect(reverse.element.disabled).toBe(true)
     expect(primary.element.disabled).toBe(true)
 
     await primary.trigger('click')

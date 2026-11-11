@@ -49,6 +49,8 @@ interface MountOptions {
   /** 覆写导出格式摘要取值（大写展示）。 */
   exportFormat?: string
   isJpgFormat?: boolean
+  /** 覆盖上传开关勾选态（T03）。 */
+  replaceUpload?: boolean
 }
 
 /** 统一挂载工厂：默认空队列浅色态，可按用例覆写关键 props。 */
@@ -66,6 +68,7 @@ const mountHeader = (overrides: MountOptions = {}) => {
       appVersion: '1.1.1',
       githubUrl: 'https://github.com/ccwq/image-grid-spliter',
       colorScheme: overrides.colorScheme ?? 'light',
+      replaceUpload: overrides.replaceUpload ?? false,
       gridDescription: '3 列 x 5 行',
       tileCount: 15,
       imageInfo: tr.stats.notLoaded,
@@ -117,6 +120,32 @@ describe('AppHeader', () => {
   })
 
   /**
+   * Given：空队列的初始工作区
+   * When：渲染头部操作区
+   * Then：覆盖上传开关始终渲染（不受队列状态门控），默认不勾选
+   * 防回归：开关若被队列状态门控，用户无法在导入前预选覆盖模式
+   */
+  it('覆盖上传开关始终渲染且默认不勾选', () => {
+    const { wrapper } = mountHeader()
+    const toggle = wrapper.get('.header-replace-toggle input')
+    expect((toggle.element as HTMLInputElement).checked).toBe(false)
+  })
+
+  /**
+   * Given：覆盖上传开关已勾选（replaceUpload=true）
+   * When：渲染并切换开关
+   * Then：勾选态反映 props，切换发出 change-replace-upload 携带新值
+   * 防回归：事件载荷缺失会让 App.vue 无法同步 useImageSlicer 的 replaceUpload 状态
+   */
+  it('覆盖上传开关切换发出 change-replace-upload', async () => {
+    const { wrapper } = mountHeader({ replaceUpload: true })
+    expect((wrapper.get('.header-replace-toggle input').element as HTMLInputElement).checked).toBe(true)
+
+    await wrapper.get('.header-replace-toggle input').setValue(false)
+    expect(wrapper.emitted('change-replace-upload')?.[0]).toEqual([false])
+  })
+
+  /**
    * Given：队列中已有图片和切片
    * When：渲染头部操作区
    * Then：重下载与清除两个条件动作出现，且各自携带 aria-label
@@ -127,10 +156,11 @@ describe('AppHeader', () => {
 
     const actions = wrapper.findAll('.header-action')
     expect(actions).toHaveLength(2)
-    // 条件动作在 .header-actions 中连续排列，重下载位于清除之前
-    expect(wrapper.get('.header-actions .header-action:nth-child(1)').attributes('aria-label')).toBe(tr.buttons.reDownload)
-    expect(wrapper.get('.header-actions .header-action:nth-child(2)').attributes('aria-label')).toBe(tr.buttons.clear)
-    expect(wrapper.get('.header-actions .header-action:nth-child(2)').classes()).toContain('danger')
+    // 条件动作按 aria-label 定位（新增覆盖上传开关排在最前，不用 nth-child 顺序耦合），重下载位于清除之前
+    expect(wrapper.get(`.header-actions [aria-label="${tr.buttons.reDownload}"]`).attributes('aria-label')).toBe(tr.buttons.reDownload)
+    const clearButton = wrapper.get(`.header-actions [aria-label="${tr.buttons.clear}"]`)
+    expect(clearButton.attributes('aria-label')).toBe(tr.buttons.clear)
+    expect(clearButton.classes()).toContain('danger')
   })
 
   /**
